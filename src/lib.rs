@@ -25,12 +25,12 @@ pub fn run() {
         let result = match exec(input) {
             Ok(val) => val,
             Err(err) => {
-                // this is where you can check for err type ExpectedMore
+                // this is where you can check for ErrorEOF
                 println!("Encountered Error: {err}");
                 continue;
             }
         };
-
+        // display the result
         println!("{result}");
         println!("---");
     }
@@ -45,6 +45,9 @@ pub fn run() {
 /// run your code - producing a Result.
 pub fn exec(expr_str: &str) -> Result<String, String>{
     // line reader
+    let reader = lexer::LineReader::new(expr_str);
+
+    // short test
 
     // lexer (tokenizer)
 
