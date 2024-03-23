@@ -3,6 +3,8 @@
 //! Something something, basic interpreter in rust. 
 
 mod macros;
+pub mod lexer;
+pub mod parser;
 
 /// run a basic input loop where the user will be prompted with `@>` or `#>` to enter
 /// code to be executed.
