@@ -2,8 +2,52 @@
 //! 
 //! Something something, basic interpreter in rust. 
 
-pub mod io;
+mod macros;
 
-pub fn exec(expr_str: &str) {
-    println!("Some output from expr {expr_str:?}");
+/// run a basic input loop where the user will be prompted with `@>` or `#>` to enter
+/// code to be executed.
+/// 
+/// ---
+/// 
+/// it can be started with `interpreter::run()` or by running the interpreter executable.
+pub fn run() {
+    use macros::io::*;
+    loop {
+        // prompt the user for input
+        let raw = prompt!("@> ");
+        let input = raw.trim();
+        if input == "exit" {
+            break;
+        }
+        // exec the input
+        let result = match exec(input) {
+            Ok(val) => val,
+            Err(err) => {
+                // this is where you can check for err type ExpectedMore
+                println!("Encountered Error: {err}");
+                continue;
+            }
+        };
+
+        println!("{result}");
+        println!("---");
+    }
+}
+
+/// Executes a line of our custom programming language using a typical, yet complex process.
+/// 
+/// ---
+/// 
+/// Uses a LineReader and Lexer to make a list of Tokens - those are fed to a Parser to 
+/// produce an Abstract Syntax Tree - finally the Interpreter will traverse the AST and
+/// run your code - producing a Result.
+pub fn exec(expr_str: &str) -> Result<String, String>{
+    // line reader
+
+    // lexer (tokenizer)
+
+    // parser (ast builder)
+
+    // interpreter
+    Ok(format!("Ping: {expr_str:?}"))
 }
