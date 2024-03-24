@@ -69,7 +69,7 @@ impl ReadPointer {
 
 // -=-=-=-=- Readers -=-=-=-=- //
 
-trait Reader {
+pub trait Reader {
     // Reading
     fn read_char(&self) -> Option<char>;
     fn read_current(&self) -> Option<&str>;

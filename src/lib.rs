@@ -2,6 +2,8 @@
 //! 
 //! Something something, basic interpreter in rust. 
 
+use regex::Regex;
+
 mod macros;
 pub mod lexer;
 pub mod parser;
@@ -44,10 +46,19 @@ pub fn run() {
 /// produce an Abstract Syntax Tree - finally the Interpreter will traverse the AST and
 /// run your code - producing a Result.
 pub fn exec(expr_str: &str) -> Result<String, String>{
+    use lexer::Reader;
     // line reader
     let reader = lexer::LineReader::new(expr_str);
 
     // short test
+    let re_num = Regex::new("^[0-9]+").unwrap();
+    let re_str = Regex::new("^[a-zA-Z_]+").unwrap();
+    if let Some(val) = reader.read_regex(re_num) {
+        return Ok(format!("Found Number: {val}"))
+    }
+    if let Some(val) = reader.read_regex(re_str) {
+        return Ok(format!("Found String: {val:?}"))
+    }
 
     // lexer (tokenizer)
 
