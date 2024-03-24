@@ -1,8 +1,8 @@
+//! # Lexer
+//! 
+//! manages parsing tokens from a reader.
 
 mod token;
 mod reader;
 
 pub use reader::*;
-// pub use reader::SizeType;
-// pub use reader::Reader;
-// pub use reader::LineReader;
