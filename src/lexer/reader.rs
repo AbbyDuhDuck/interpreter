@@ -31,7 +31,7 @@ use regex::Regex;
 /// let obj = NewObject { size: 3 };
 /// reader.next(obj);
 /// 
-/// let val = reader.read_next(3).unwrap();
+/// let (val, ptr) = reader.read_next(3).unwrap();
 /// assert_eq!("def", val);
 /// ```
 pub trait SizeType {
@@ -62,6 +62,7 @@ where
     }
 }
 
+
 // -=-=- Read Pointer -=-=- //
 
 /// A pointer to the positions in a Reader's content
@@ -73,10 +74,25 @@ pub struct ReadPointer {
     pub read_pos: (u32, u32),
 }
 
-
 impl ReadPointer {
     fn new() -> ReadPointer {
         ReadPointer {line_pos: (0,0, 0,0), read_pos: (0, 0)}
+    }
+
+    fn from_to(from: ReadPointer, to: ReadPointer) -> ReadPointer {
+        ReadPointer {
+            line_pos: (from.line_pos.0, from.line_pos.1, to.line_pos.2, to.line_pos.3),
+            read_pos: (from.read_pos.0, to.read_pos.1)
+        }
+    }
+
+    fn move_pointer(ptr: &mut ReadPointer, raw: &str) {
+        for c in raw.chars() {
+            ptr.increment();
+            if c == 0xA as char {
+                ptr.increment_line();
+            }
+        }
     }
 
     // -=-=- Seeking -=-=- //
@@ -112,12 +128,23 @@ pub trait Reader {
     // Reading
     fn read_char(&self) -> Option<char>;
     fn read_current(&self) -> Option<&str>;
-    fn read_next(&self, size: usize) -> Option<&str>;
     fn read_pointer(&self, ptr: &ReadPointer) -> Option<&str>;
-    fn read_regex(&self, regex: Regex) -> Option<&str>;
+    fn read_next(&self, size: usize) -> Option<(&str, ReadPointer)>;
+    fn read_regex(&self, regex: &Regex) -> Option<(&str, ReadPointer)>;
+    // Pointer
+    fn get_pointer(&self) -> ReadPointer;
+    // fn get_pointer_next<T>(&self, size: T) -> Result<ReadPointer, String> where T: SizeType;
     // Seeking
     fn next<T>(&mut self, size: T) -> Result<(), String> where T: SizeType;
     fn pull(&mut self);
+
+    // token pointer
+    fn get_token_pointer(raw: &str, ptr: &ReadPointer) -> ReadPointer {
+        let mut ptr = ptr.clone();
+        ptr.pull();
+        ReadPointer::move_pointer(&mut ptr, raw);
+        ptr
+    }
 }
 
 // -=-=- Line Reader -=-=- //
@@ -154,6 +181,7 @@ impl LineReader {
             pointer: ReadPointer::new()
         }
     }
+
 }
 
 impl Reader for LineReader {
@@ -207,14 +235,15 @@ impl Reader for LineReader {
     /// use interpreter::lexer::{Reader, LineReader};
     /// let mut reader = LineReader::new("abcdefg");
     /// 
-    /// let val: &str = reader.read_next(4).unwrap();
+    /// let (val, ptr) = reader.read_next(4).unwrap();
     /// assert_eq!("abcd", val);
     /// ```
-    fn read_next(&self, size: usize) -> Option<&str> {
+    fn read_next(&self, size: usize) -> Option<(&str, ReadPointer)> {
         // todo set up read bounds
         let i = self.pointer.read_pos.1 as usize;
         let j = i + size;
-        Some(&self.content[i..j])
+        let raw = &self.content[i..j];
+        Some((raw, <Self as Reader>::get_token_pointer(raw, &self.pointer)))
     }
 
     /// Read the value pointed at by the ReadPointer
@@ -250,14 +279,33 @@ impl Reader for LineReader {
     /// let mut reader = LineReader::new("abcdefg");
     /// let re = Regex::new("^[a-d]+").unwrap();
     /// 
-    /// let val: &str = reader.read_regex(re).unwrap();
+    /// let (val, ptr) = reader.read_regex(&re).unwrap();
     /// assert_eq!("abcd", val);
     /// ```
-    fn read_regex(&self, regex: Regex) -> Option<&str> {
+    fn read_regex(&self, regex: &Regex) -> Option<(&str, ReadPointer)> {
         let i = self.pointer.read_pos.1 as usize;
         let m = regex.find(&self.content[i..])?;
-        Some(m.as_str())
+        let raw = m.as_str();
+        Some((raw, <Self as Reader>::get_token_pointer(raw, &self.pointer)))
     }
+    
+    // -=-=- Pointer -=-=- //
+
+    fn get_pointer(&self) -> ReadPointer {
+        self.pointer
+    }
+
+    // fn get_pointer_next<T>(&self, size: T) -> Result<ReadPointer, String> where T: SizeType {
+    //     let count = size.get_size();
+    //     let current = match self.read_next(count) {
+    //         Some(val) => val,
+    //         None => return Err(String::from("Couldn't read next,.."))
+    //     };
+
+    //     let mut ptr = self.pointer; // im pretty sure this does a copy
+    //     ReadPointer::move_pointer(&mut ptr, current)?;
+    //     Ok(ptr)
+    // }
 
     // -=-=-=- Seeking -=-=- //
 
@@ -272,7 +320,7 @@ impl Reader for LineReader {
     /// let mut reader = LineReader::new("abcdefg");
     /// 
     /// let _ = reader.next(3);
-    /// let val = reader.read_char().unwrap();
+    /// let val: char = reader.read_char().unwrap();
     /// assert_eq!('d', val);
     /// ```
     /// 
@@ -285,28 +333,25 @@ impl Reader for LineReader {
     /// use interpreter::lexer::{Reader, LineReader};
     /// let mut reader = LineReader::new("abcdefg");
     /// 
-    /// let val = reader.read_next(3).unwrap().to_owned();
+    /// let (val, ptr) = reader.read_next(3).unwrap();
+    /// let val = val.to_owned(); // fix mutability error
     /// let _ = reader.next(&val);
     /// assert_eq!("abc", val);
     /// 
-    /// let val = reader.read_next(3).unwrap();
+    /// let (val, ptr) = reader.read_next(3).unwrap();
     /// assert_eq!("def", val);
     /// ```
     /// 
     fn next<T>(&mut self, size: T) -> Result<(), String> where T: SizeType {
         let count = size.get_size();
-        let current = match self.read_next(count) {
-            Some(val) => val,
+        let ptr = match self.read_next(count) {
+            Some((_val, ptr)) => ptr,
             None => return Err(String::from("Couldn't read next,.."))
-        }.to_owned();
+        };
         
-        for c in current.chars() {
-            self.pointer.increment();
-            if c == 0xA as char {
-                self.pointer.increment_line();
-            }
-        }
-        
+        // ReadPointer::move_pointer(&mut self.pointer, current);
+        self.pointer = ReadPointer::from_to(self.pointer, ptr);
+
         Ok(())
     }
     
@@ -346,3 +391,41 @@ impl Reader for LineReader {
 /// let reader = FileReader::new("./path/to/file.ext");
 /// ```
 struct _FileReader {}
+
+impl Reader for _FileReader {
+    fn read_char(&self) -> Option<char> {
+        todo!()
+    }
+
+    fn read_current(&self) -> Option<&str> {
+        todo!()
+    }
+
+    fn read_next(&self, _size: usize) -> Option<(&str, ReadPointer)> {
+        todo!()
+    }
+
+    fn read_pointer(&self, _ptr: &ReadPointer) -> Option<&str> {
+        todo!()
+    }
+
+    fn read_regex(&self, _regex: &Regex) -> Option<(&str, ReadPointer)> {
+        todo!()
+    }
+
+    fn get_pointer(&self) -> ReadPointer {
+        todo!()
+    }
+
+    // fn get_pointer_next<T>(&self, _size: T) -> Result<ReadPointer, String> where T: SizeType {
+    //     todo!()
+    // }
+
+    fn next<T>(&mut self, _size: T) -> Result<(), String> where T: SizeType {
+        todo!()
+    }
+
+    fn pull(&mut self) {
+        todo!()
+    }
+}
