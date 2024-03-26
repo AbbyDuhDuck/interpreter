@@ -44,24 +44,28 @@ pub fn run() {
 /// produce an Abstract Syntax Tree - finally the Interpreter will traverse the AST and
 /// run your code - producing a Result.
 pub fn exec(expr_str: &str) -> Result<String, String>{
-    // line reader
+    // -=- line reader -=- //
     let reader = lexer::LineReader::new(expr_str);
 
-    // lexer (tokenizer)
-    let mut _lexer = lexer::Lexer::new();
+    // -=- lexer (tokenizer) -=- //
+    let mut _lexer = lexer::Lexer::new(); // typically you would make this only once.
     _lexer.define(lexer::TokenDef::new("num", "[0-9]+")?);
     _lexer.define(lexer::TokenDef::new("str", "[a-zA-Z_]+")?);
 
+    // match by token type
     if let Some(tok) = _lexer.get_next_token("num", &reader) {
         println!("Hey you found the number: {}", tok.value);
     }
 
+    // match any
     if let Some(tok) = _lexer.get_next_any(&reader) {
         return Ok(format!("Found: {tok:?}"));
     };
 
-    // parser (ast builder)
+    // -=- parser (ast builder) -=- //
 
-    // interpreter
+    // -=- interpreter -=- //
+
+    // just ping back the input for now
     Ok(format!("Ping: {expr_str:?}"))
 }

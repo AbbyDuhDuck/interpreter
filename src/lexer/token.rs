@@ -13,6 +13,7 @@ use super::{ReadPointer, Reader};
 #[derive(Clone, Debug)]
 pub struct Token {
     // should be an enum but I prefer a hierarchical naming.
+    /// String name of a token type
     pub token_type: String,
     /// Raw value of the token
     pub value: String,
@@ -21,6 +22,7 @@ pub struct Token {
 }
 
 impl Token {
+    /// Make a new token
     pub fn new(token_type: &str, value: &str, position: ReadPointer) -> Token {
         Token { token_type: token_type.to_string(), value: value.to_string(), position }
     }
@@ -34,19 +36,22 @@ pub struct TokenDef {
 }
 
 impl TokenDef {
+    /// Make a new token definition for the type provided by `token_type`. Additionally
+    /// the passed `regex` value is expected to compile without error or a Token Definition
+    /// cannot be created.
     pub fn new(token_type: &str, regex: &str) -> Result<TokenDef, String> {
         let regex = TokenDef::build_regex(regex)?;
         Ok(TokenDef { token_type: token_type.into(), regex })
     }
 
-    /// builds a regex string 
-    /// 
-    /// # NOT FULLY IMPLEMENTED!
+    /// builds a regex string from the supplied value with the format `\A( {regex} )`. This
+    /// ensures that the token definition requires that a token be next in the content when
+    /// matching.
     fn build_regex(regex: &str) -> Result<Regex, String> {
         let regex = format!("\\A({regex})");
         match Regex::new(&regex){
             Ok(regex) => Ok(regex),
-            Err(err) => Err(format!("{err:?}"))
+            Err(_) => Err(format!("Cannot Build Token Definition - Regex Error for: {regex:}"))
         }
     }
 }
@@ -64,20 +69,71 @@ impl Lexer {
 
     // -=-=- Define Token -=-=- //
 
+    /// take ownership of a token definition an add it to the current possible
+    /// tokens that the Lexer can parse.
+    /// 
+    /// ---
+    /// 
+    /// ## Example
+    /// 
+    /// ```
+    /// use interpreter::lexer::{Lexer, TokenDef};
+    /// let mut lexer = Lexer::new();
+    /// 
+    /// lexer.define(TokenDef::new("value:ident", "[a-zA-Z_]+")?);
+    /// lexer.define(TokenDef::new("value:num", "[0-9]+")?);
+    /// Ok::<(), String>(())
+    /// ```
     pub fn define(&mut self, def: TokenDef) {
-        // unimplemented!()
-        println!("{:#?}", def);
+        // println!("{:#?}", def);
         self.definitions.insert(def.token_type.to_owned(), def);
     }
 
     // -=-=- Get Token -=-=- //
 
+    /// Get the next token in the reader only if it is defined and the token type 
+    /// matches the passed `token_type`.
+    /// 
+    /// ---
+    /// 
+    /// ## Example
+    /// 
+    /// ```
+    /// use interpreter::lexer::{Lexer, TokenDef, LineReader};
+    /// let reader = LineReader::new("12345abcdefg");
+    /// let mut lexer = Lexer::new();
+    /// lexer.define(TokenDef::new("num", "[0-9]+")?);
+    /// let token = lexer.get_next_token("num", &reader);
+    /// 
+    /// let token = token.ok_or("Couldn't find token")?;
+    /// assert_eq!(token.token_type, "num");
+    /// assert_eq!(token.value, "12345");
+    /// Ok::<(), String>(())
+    /// ```
     pub fn get_next_token<T>(&self, token_type: &str, reader: &T) -> Option<Token>
     where T: Reader {
         let def = self.definitions.get(token_type)?;
         self.get_next(def, reader)
     }
 
+    /// Get the next token in the reader that matches any of the defined token types.
+    /// 
+    /// ---
+    /// 
+    /// ## Example
+    /// 
+    /// ```
+    /// use interpreter::lexer::{Lexer, TokenDef, LineReader};
+    /// let reader = LineReader::new("12345abcdefg");
+    /// let mut lexer = Lexer::new();
+    /// lexer.define(TokenDef::new("num", "[0-9]+")?);
+    /// let token = lexer.get_next_any(&reader);
+    /// 
+    /// let token = token.ok_or("Couldn't find token")?;
+    /// assert_eq!(token.token_type, "num");
+    /// assert_eq!(token.value, "12345");
+    /// Ok::<(), String>(())
+    /// ```
     pub fn get_next_any<T>(&self, reader: &T) -> Option<Token>
     where T: Reader {
         for key in self.definitions.keys() {
@@ -92,11 +148,27 @@ impl Lexer {
         None
     }
 
+    /// Get the next token in the reader that matches the provided token definition.
+    /// 
+    /// ---
+    /// 
+    /// ## Example
+    /// 
+    /// ```
+    /// use interpreter::lexer::{Lexer, TokenDef, LineReader};
+    /// let reader = LineReader::new("12345abcdefg");
+    /// let mut lexer = Lexer::new();
+    /// let token_def = TokenDef::new("num", "[0-9]+")?;
+    /// let token = lexer.get_next(&token_def, &reader);
+    /// 
+    /// let token = token.ok_or("Couldn't find token")?;
+    /// assert_eq!(token.token_type, "num");
+    /// assert_eq!(token.value, "12345");
+    /// Ok::<(), String>(())
+    /// ```
     pub fn get_next<T>(&self, def: &TokenDef, reader: &T) -> Option<Token>
     where T: Reader {
         if let Some((value, position)) = reader.read_regex(&def.regex) {
-            // this should not fail - if it does it means there is a pointer mismatch
-            // let position = reader.get_pointer_next(value).ok()?;
             return Some(Token::new( &def.token_type, value, position));
         }
         None
