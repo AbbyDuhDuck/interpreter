@@ -45,9 +45,20 @@ pub fn run() {
 /// run your code - producing a Result.
 pub fn exec(expr_str: &str) -> Result<String, String>{
     // line reader
-    let _reader = lexer::LineReader::new(expr_str);
+    let reader = lexer::LineReader::new(expr_str);
 
     // lexer (tokenizer)
+    let mut _lexer = lexer::Lexer::new();
+    _lexer.define(lexer::TokenDef::new("num", "[0-9]+")?);
+    _lexer.define(lexer::TokenDef::new("str", "[a-zA-Z_]+")?);
+
+    if let Some(tok) = _lexer.get_next_token("num", &reader) {
+        println!("Hey you found the number: {}", tok.value);
+    }
+
+    if let Some(tok) = _lexer.get_next_any(&reader) {
+        return Ok(format!("Found: {tok:?}"));
+    };
 
     // parser (ast builder)
 
