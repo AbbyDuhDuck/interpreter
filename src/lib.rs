@@ -49,8 +49,8 @@ pub fn exec(expr_str: &str) -> Result<String, String>{
 
     // -=- lexer (tokenizer) -=- //
     let mut _lexer = lexer::Lexer::new(); // typically you would make this only once.
-    _lexer.define(lexer::TokenDef::new("num", "[0-9]+")?);
-    _lexer.define(lexer::TokenDef::new("str", "[a-zA-Z_]+")?);
+    _lexer.define("num", "[0-9]+")?;
+    _lexer.define("str", "[a-zA-Z_]+")?;
 
     // match by token type
     if let Some(tok) = _lexer.get_next_token("num", &reader) {
@@ -59,10 +59,15 @@ pub fn exec(expr_str: &str) -> Result<String, String>{
 
     // match any
     if let Some(tok) = _lexer.get_next_any(&reader) {
-        return Ok(format!("Found: {tok:?}"));
+        println!("Found: {tok:?}");
     };
 
     // -=- parser (ast builder) -=- //
+    let mut parser = parser::Parser::new(); // typically you would make this only once.
+    parser.define("expr", parser::RuleType::Token("num")); // TODO
+
+    let ast = parser.parse_tree(&_lexer, &reader);
+    println!("AST:\n{ast:?}");
 
     // -=- interpreter -=- //
 
