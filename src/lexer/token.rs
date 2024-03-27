@@ -69,6 +69,26 @@ impl Lexer {
 
     // -=-=- Define Token -=-=- //
 
+    /// Add or replace a token definition in the current possible tokens that the 
+    /// Lexer can parse.
+    /// 
+    /// ---
+    /// 
+    /// ## Example
+    /// 
+    /// ```
+    /// use interpreter::lexer::{Lexer, TokenDef};
+    /// let mut lexer = Lexer::new();
+    /// 
+    /// lexer.define("value:ident", "[a-zA-Z_]+")?;
+    /// lexer.define("value:num", "[0-9]+")?;
+    /// Ok::<(), String>(())
+    /// ```
+    pub fn define(&mut self, token_type: &str, regex: &str) -> Result<(), String> {
+        self.define_token(TokenDef::new(token_type, regex)?);
+        Ok(())
+    }
+
     /// take ownership of a token definition an add it to the current possible
     /// tokens that the Lexer can parse.
     /// 
@@ -80,12 +100,12 @@ impl Lexer {
     /// use interpreter::lexer::{Lexer, TokenDef};
     /// let mut lexer = Lexer::new();
     /// 
-    /// lexer.define(TokenDef::new("value:ident", "[a-zA-Z_]+")?);
-    /// lexer.define(TokenDef::new("value:num", "[0-9]+")?);
+    /// lexer.define_token(TokenDef::new("value:ident", "[a-zA-Z_]+")?);
+    /// lexer.define_token(TokenDef::new("value:num", "[0-9]+")?);
     /// Ok::<(), String>(())
     /// ```
-    pub fn define(&mut self, def: TokenDef) {
-        // println!("{:#?}", def);
+    pub fn define_token(&mut self, def: TokenDef) {
+        println!("{:#?}", def);
         self.definitions.insert(def.token_type.to_owned(), def);
     }
 
@@ -102,7 +122,7 @@ impl Lexer {
     /// use interpreter::lexer::{Lexer, TokenDef, LineReader};
     /// let reader = LineReader::new("12345abcdefg");
     /// let mut lexer = Lexer::new();
-    /// lexer.define(TokenDef::new("num", "[0-9]+")?);
+    /// lexer.define("num", "[0-9]+")?;
     /// let token = lexer.get_next_token("num", &reader);
     /// 
     /// let token = token.ok_or("Couldn't find token")?;
@@ -126,7 +146,7 @@ impl Lexer {
     /// use interpreter::lexer::{Lexer, TokenDef, LineReader};
     /// let reader = LineReader::new("12345abcdefg");
     /// let mut lexer = Lexer::new();
-    /// lexer.define(TokenDef::new("num", "[0-9]+")?);
+    /// lexer.define("num", "[0-9]+")?;
     /// let token = lexer.get_next_any(&reader);
     /// 
     /// let token = token.ok_or("Couldn't find token")?;
