@@ -4,7 +4,7 @@ The example files for a simple interpreter in rust.
 
 ---
 
-### Example
+### Example CLI
 
 ```
 @> some example
@@ -19,6 +19,95 @@ other result
 #> of multiline
 #> thing
 some result
+```
+
+### Example Math Syntax
+
+```
+EXPR ::= TERM op:+ EXPR 
+       | TERM op:- EXPR 
+       | TERM
+       ;
+
+TERM ::= FACTOR op:* TERM 
+       | FACTOR op:/ TERM 
+       | FACTOR
+       ;
+
+FACTOR ::= op:( EXPR op:) 
+         | NUM 
+         | VAR
+         ;
+
+NUM ::= int:
+      | float:
+      ;
+
+VAR ::= ident:
+
+op:     + - * / ( )
+float:  /[0-9]+\.[0-9]+/
+int:    /[0-9]+/
+ident:  /[a-zA-Z_]+/
+```
+
+### Raw code for the above
+
+```
+EXPR = [
+    Expression([ Expr(TERM), Token(op:+), Expr(EXPR) ]),
+    Expression([ Expr(TERM), Token(op:-), Expr(EXPR) ]),
+    Expr(TERM),
+]
+
+TERM = [
+    Expression([ Expr(FACTOR), Token(op:*), Expr(TERM) ]),
+    Expression([ Expr(FACTOR), Token(op:/), Expr(TERM) ]),
+    Expr(FACTOR),
+]
+
+FACTOR = [
+    Expression([ Token( op:( ), Expr(EXPR), Token( op:) )]),
+    Expr(NUM),
+    Expr(VAR),
+]
+
+NUM = [
+    Token(int:),
+    Token(float:),
+]
+
+VAR = [
+    Token(ident:)
+]
+```
+
+### Artamis Pseudo Code
+
+The UniOp `!` is the required operator which makes the interpreter throw a compile error if the expression is not present. The UniOp `?` is the maybe operator which will continue matching even if the expression is missing. The brackets `(` and `)` denote sub expressions
+
+```
+expr ::= math:expr
+
+// prefered
+math:expr ::= math:term op:+ math:expr!
+            | math:term op:- math:expr!
+            | math:term
+
+// allowed but not prefered
+math:term ::= math:factor ( ( op:* | op:/ ) math:term! )?
+
+// this expands to
+math:term ::= math:factor math:term:0?
+math:term:0 ::= math:term:1 math:term!
+math:term:1 ::= op:* | op:/
+
+math:factor ::= op:( math:expr ( op:) )!
+              | math:num 
+              | math:var
+
+math:num ::= int: | float:
+math:var ::= ident:
 ```
 
 ## Info
