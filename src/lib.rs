@@ -48,7 +48,7 @@ pub fn exec(expr_str: &str) -> Result<String, String>{
     use lang::math;
 
     // -=- line reader -=- //
-    let reader = lexer::LineReader::new(expr_str);
+    let mut reader = lexer::LineReader::new(expr_str);
 
     // -=- lexer (tokenizer) -=- //
     let _lexer = math::LEXER;
@@ -73,8 +73,8 @@ pub fn exec(expr_str: &str) -> Result<String, String>{
     // let mut parser = parser::Parser::new(); // typically you would make this only once.
     // parser.define("expr", parser::RuleType::Token("num")); // TODO
 
-    let ast = parser.parse_tree(&_lexer, &reader)?;
-    println!("AST:\n{ast:?}");
+    let ast = parser.parse_tree(&_lexer, &mut reader)?;
+    println!("AST:\n{ast:}");
 
     // -=- interpreter -=- //
 

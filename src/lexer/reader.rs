@@ -67,8 +67,9 @@ where
 // -=-=- Read Pointer -=-=- //
 
 /// A read-only pointer to a start and end position in a Reader's content
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ReadPointer {
+
     /// Format (start: line, col, end: line, col)
     pub line_pos: (u32,u32, u32,u32), 
     /// Format (start, end)
@@ -77,7 +78,11 @@ pub struct ReadPointer {
 
 impl ReadPointer {
     fn new() -> ReadPointer {
-        ReadPointer {line_pos: (0,0, 0,0), read_pos: (0, 0)}
+        ReadPointer::from_pos((0,0, 0,0), (0,0))
+    }
+
+    pub fn from_pos (line_pos: (u32,u32, u32,u32), read_pos: (u32,u32)) -> ReadPointer {
+        ReadPointer {line_pos, read_pos }
     }
 
     /// make a new pointer that spans the position from one pointer to another.
@@ -88,16 +93,16 @@ impl ReadPointer {
     /// 
     /// ```
     /// use interpreter::lexer::ReadPointer;
-    /// let ptr1 = ReadPointer {line_pos: (0,3, 0,6), read_pos: (3, 6)};
-    /// let ptr2 = ReadPointer {line_pos: (0,6, 0,9), read_pos: (6, 9)};
+    /// let ptr1 = ReadPointer::from_pos((0,3, 0,6), (3, 6));
+    /// let ptr2 = ReadPointer::from_pos((0,6, 0,9), (6, 9));
     /// 
-    /// let ptr3 = ReadPointer::from_to(ptr1, ptr2);
-    /// assert_eq!(ptr3, ReadPointer {line_pos: (0,3, 0,9), read_pos: (3, 9)})
+    /// let ptr3 = ReadPointer::from_to(&ptr1, &ptr2);
+    /// assert_eq!(ptr3, ReadPointer::from_pos((0,3, 0,9), (3, 9)));
     /// ```
-    pub fn from_to(from: ReadPointer, to: ReadPointer) -> ReadPointer {
+    pub fn from_to(from: &ReadPointer, to: &ReadPointer) -> ReadPointer {
         ReadPointer {
             line_pos: (from.line_pos.0, from.line_pos.1, to.line_pos.2, to.line_pos.3),
-            read_pos: (from.read_pos.0, to.read_pos.1)
+            read_pos: (from.read_pos.0, to.read_pos.1),
         }
     }
 
@@ -109,10 +114,10 @@ impl ReadPointer {
     /// 
     /// ``` ignore
     /// use interpreter::lexer::ReadPointer;
-    /// let mut ptr = ReadPointer {line_pos: (0,3, 0,6), read_pos: (3, 6)};
+    /// let mut ptr = ReadPointer::from_pos((0,3, 0,6), (3, 6));
     /// 
     /// ReadPointer::move_pointer(&mut ptr, "abc\nabcd");
-    /// assert_eq!(ptr, ReadPointer {line_pos: (0,3, 1,4), read_pos: (3, 14)})
+    /// assert_eq!(ptr, ReadPointer:from_pos((0,3, 1,4), (3, 14)))
     /// ```
     fn move_pointer(ptr: &mut ReadPointer, raw: &str) {
         let mut chars = raw.chars().peekable();
@@ -147,12 +152,25 @@ impl ReadPointer {
     }
 
     /// Move the start position to equal the end position.
-    fn pull(&mut self) {
+    fn commit(&mut self) {
         // (start, end)
         self.read_pos.0 = self.read_pos.1;
         // (start: line, col, end: line, col)
         self.line_pos.0 = self.line_pos.2;
         self.line_pos.1 = self.line_pos.3;
+    }
+
+    fn back(&mut self) {
+        // (start, end)
+        self.read_pos.1 = self.read_pos.0;
+        // (start: line, col, end: line, col)
+        self.line_pos.2 = self.line_pos.0;
+        self.line_pos.3 = self.line_pos.1;
+    }
+
+    /// Get the length of a pointer
+    pub fn len(&self) -> usize {
+        ( self.read_pos.1 - self.read_pos.0 ) as usize
     }
 }
 
@@ -182,18 +200,25 @@ pub trait Reader {
     /// Move the pointer ahead by the size of the supplied value.
     fn next<T>(&mut self, size: T) -> Result<(), String> where T: SizeType;
     
+    fn push(&mut self);
+
+    fn pop(&mut self);
+
     /// Pulls the pointers start position to the end position.
-    fn pull(&mut self);
+    fn commit(&mut self);
+
+    /// resturn to the start pointer
+    fn back(&mut self);
     
     // -=- Pointer -=- //
     
     /// Get the current pointer value
-    fn get_pointer(&self) -> ReadPointer;
+    fn get_pointer(&self) -> &ReadPointer;
     
     /// get a token's pointer using a starting pointer and raw value
     fn get_token_pointer(raw: &str, ptr: &ReadPointer) -> ReadPointer {
         let mut ptr = ptr.clone();
-        ptr.pull();
+        ptr.commit();
         ReadPointer::move_pointer(&mut ptr, raw);
         ptr
     }
@@ -212,6 +237,8 @@ pub trait Reader {
 /// let reader = LineReader::new("Line to Read.");
 /// ```
 pub struct LineReader {
+    stack: Vec<ReadPointer>,
+    
     content: String,
     pointer: ReadPointer,
 }
@@ -230,7 +257,9 @@ impl LineReader {
     pub fn new(line: &str) -> LineReader {
         LineReader{
             content: line.to_string(),
-            pointer: ReadPointer::new()
+            pointer: ReadPointer::new(),
+
+            stack: vec![],
         }
     }
 
@@ -307,7 +336,7 @@ impl Reader for LineReader {
     /// ```
     /// use interpreter::lexer::{ReadPointer, Reader, LineReader};
     /// let mut reader = LineReader::new("abcdefg");
-    /// let ptr = ReadPointer {line_pos: (0,3, 0,6), read_pos: (3, 6)};
+    /// let ptr = ReadPointer::from_pos((0,3, 0,6), (3, 6));
     /// 
     /// let val: &str = reader.read_pointer(&ptr).unwrap();
     /// assert_eq!("def", val);
@@ -344,8 +373,8 @@ impl Reader for LineReader {
     // -=-=- Pointer -=-=- //
 
     /// Get the current pointer value
-    fn get_pointer(&self) -> ReadPointer {
-        self.pointer
+    fn get_pointer(&self) -> &ReadPointer {
+        &self.pointer
     }
 
     // -=-=- Seeking -=-=- //
@@ -391,8 +420,7 @@ impl Reader for LineReader {
         };
         
         // ReadPointer::move_pointer(&mut self.pointer, current);
-        self.pointer = ReadPointer::from_to(self.pointer, ptr);
-
+        self.pointer = ReadPointer::from_to(&self.pointer, &ptr);
         Ok(())
     }
     
@@ -407,14 +435,36 @@ impl Reader for LineReader {
     /// let mut reader = LineReader::new("abcdefg");
     /// let _ = reader.next(3);
     /// 
-    /// reader.pull();
+    /// reader.commit();
     /// reader.next(3);
     /// 
     /// let val: &str = reader.read_current().unwrap();
     /// assert_eq!("def", val);
     /// ``` 
-    fn pull(&mut self) {
-        self.pointer.pull();
+    fn commit(&mut self) {
+        self.pointer.commit();
+        // println!("Commit {:?}", self.pointer);
+    }
+
+    
+    fn back(&mut self) {
+        self.pointer.back();
+        // println!("Back {:?}", self.pointer);
+    }
+
+    fn push(&mut self) {
+        let ptr = self.pointer.clone();
+        self.stack.push(self.pointer.to_owned());
+        self.pointer = ptr;
+        // println!("Push [{}] {:?}", self.stack.len(), self.pointer);
+    }
+    
+    fn pop(&mut self) {
+        self.pointer = {
+            let ptr = self.pointer.clone();
+            self.stack.pop().unwrap_or(ptr)
+        };
+        // println!("Pop [{}] {:?}", self.stack.len(), self.pointer);
     }
     
     
@@ -469,14 +519,27 @@ impl Reader for _FileReader {
     }
     
     /// Pulls the pointers start position to the end position.
-    fn pull(&mut self) {
+    fn commit(&mut self) {
+        todo!()
+    }
+
+    
+    fn back(&mut self) {
+        todo!()
+    }
+    
+    fn push(&mut self) {
+        todo!()
+    }
+    
+    fn pop(&mut self) {
         todo!()
     }
     
     // -=-=- Pointer -=-=- //
     
     /// Get the current pointer value
-    fn get_pointer(&self) -> ReadPointer {
+    fn get_pointer(&self) -> &ReadPointer {
         todo!()
     }
 }
@@ -492,13 +555,13 @@ mod doctest {
     /// Copy of the ignored Doctest for `ReadPointer::move_pointer()`
     #[test]
     fn move_pointer() {
-        let mut ptr = ReadPointer { line_pos: (0, 3, 0, 6), read_pos: (3, 6) };
+        let mut ptr = ReadPointer::from_pos((0, 3, 0, 6), (3, 6) );
         
         // Call the function to be tested
         ReadPointer::move_pointer(&mut ptr, "abc\nabcd");
 
         // Assert that the pointer has moved correctly
-        assert_eq!(ptr, ReadPointer { line_pos: (0, 3, 1, 4), read_pos: (3, 14) });
+        assert_eq!(ptr, ReadPointer::from_pos((0, 3, 1, 4), (3, 14) ));
     }
 }
 
@@ -509,48 +572,48 @@ mod tests {
     #[test]
     fn move_pointer_with_all_line_endings() {
         // Unix line ending
-        let mut ptr_unix = ReadPointer { line_pos: (0, 3, 0, 6), read_pos: (3, 6) };
+        let mut ptr_unix = ReadPointer::from_pos((0, 3, 0, 6), (3, 6) );
         ReadPointer::move_pointer(&mut ptr_unix, "abc\nabcd");
 
         // Windows line ending
-        let mut ptr_windows = ReadPointer { line_pos: (0, 3, 0, 6), read_pos: (3, 6) };
+        let mut ptr_windows = ReadPointer::from_pos((0, 3, 0, 6), (3, 6) );
         ReadPointer::move_pointer(&mut ptr_windows, "abc\r\nabcd");
 
         // Old Mac line ending
-        let mut ptr_old_mac = ReadPointer { line_pos: (0, 3, 0, 6), read_pos: (3, 6) };
+        let mut ptr_old_mac = ReadPointer::from_pos((0, 3, 0, 6), (3, 6) );
         ReadPointer::move_pointer(&mut ptr_old_mac, "abc\rabcd");
 
         // Assert Unix line ending
-        assert_eq!(ptr_unix, ReadPointer { line_pos: (0, 3, 1, 4), read_pos: (3, 14) },
+        assert_eq!(ptr_unix, ReadPointer::from_pos((0, 3, 1, 4), (3, 14) ),
             "Unix Line Ending");
 
         // Assert Windows line ending
-        assert_eq!(ptr_windows, ReadPointer { line_pos: (0, 3, 1, 4), read_pos: (3, 15) },
+        assert_eq!(ptr_windows, ReadPointer::from_pos((0, 3, 1, 4), (3, 15) ),
             "Windows Line Ending");
 
         // Assert Old Mac line ending
-        assert_eq!(ptr_old_mac, ReadPointer { line_pos: (0, 3, 1, 4), read_pos: (3, 14) },
+        assert_eq!(ptr_old_mac, ReadPointer::from_pos((0, 3, 1, 4), (3, 14) ),
             "Old Mac Line Ending");
     }
 
     #[test]
     fn pointer_increment() {
-        let mut ptr = ReadPointer { line_pos: (0, 3, 0, 6), read_pos: (3, 6) };
+        let mut ptr = ReadPointer::from_pos((0, 3, 0, 6), (3, 6) );
         ptr.increment();
-        assert_eq!(ptr, ReadPointer { line_pos: (0, 3, 0, 7), read_pos: (3, 7) });
+        assert_eq!(ptr, ReadPointer::from_pos((0, 3, 0, 7), (3, 7) ));
     }
 
     #[test]
     fn pointer_increment_line() {
-        let mut ptr = ReadPointer { line_pos: (0, 3, 0, 6), read_pos: (3, 6) };
+        let mut ptr = ReadPointer::from_pos((0, 3, 0, 6), (3, 6) );
         ptr.increment_line();
-        assert_eq!(ptr, ReadPointer { line_pos: (0, 3, 1, 0), read_pos: (3, 6) });
+        assert_eq!(ptr, ReadPointer::from_pos((0, 3, 1, 0), (3, 6) ));
     }
 
     #[test]
-    fn pointer_pull() {
-        let mut ptr = ReadPointer { line_pos: (0, 3, 1, 6), read_pos: (3, 9) };
-        ptr.pull();
-        assert_eq!(ptr, ReadPointer { line_pos: (1, 6, 1, 6), read_pos: (9, 9) });
+    fn pointer_commit() {
+        let mut ptr = ReadPointer::from_pos((0, 3, 1, 6), (3, 9) );
+        ptr.commit();
+        assert_eq!(ptr, ReadPointer::from_pos((1, 6, 1, 6), (9, 9) ));
     }
 }

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use regex::Regex;
 
-use super::{ReadPointer, Reader};
+use super::{ReadPointer, Reader, SizeType};
 
 /// A raw token object.
 #[derive(Clone, Debug)]
@@ -19,6 +19,32 @@ pub struct Token {
     pub value: String,
     /// The read position of where the token was found.
     pub position: ReadPointer
+}
+
+impl SizeType for &Token {
+    fn get_size(&self) -> usize {
+        self.position.len()
+    }
+}
+
+impl std::fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // write!(
+        //     f,
+        //     "{}:{} ({}, {} - {})",
+        //     self.token_type,
+        //     self.value,
+        //     self.position.line_pos.0,
+        //     self.position.line_pos.1,
+        //     self.position.len(),
+        // )
+        write!(
+            f,
+            "{}:{}",
+            self.token_type,
+            self.value,
+        )
+    }
 }
 
 impl Token {
@@ -105,7 +131,7 @@ impl Lexer {
     /// Ok::<(), String>(())
     /// ```
     pub fn define_token(&mut self, def: TokenDef) {
-        println!("{:#?}", def);
+        // println!("{:#?}", def);
         self.definitions.insert(def.token_type.to_owned(), def);
     }
 

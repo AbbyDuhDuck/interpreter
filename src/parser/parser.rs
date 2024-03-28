@@ -26,23 +26,24 @@ impl<'a> Parser<'a> {
         Parser { definitions: HashMap::new() }
     }
 
-    pub fn parse_tree<T>(&self, lexer: &Lexer, reader: &T) -> Result<AbstractSyntaxTree, String>
+    pub fn parse_tree<T>(&self, lexer: &Lexer, reader: &mut T) -> Result<AbstractSyntaxTree, String>
     where T: Reader {
-        if !self.definitions.contains_key("EXPR") { 
-            return Err("You need to define an Expression for EXPR".into());
-        }
         let expr = match self.definitions.get("EXPR") {
             Some(expr) => expr,
             None => { 
                 return Err("You need to define an Expression for EXPR".into());
             }
         };
-        let root = expr.get(lexer, reader)?;
+        let root = expr.get(lexer, &self, reader)?;
         Ok(AbstractSyntaxTree::new(root))
     }
 
+    pub fn get_expr(&self, expr: &str) -> Result<&Expression, String> {
+        self.definitions.get(expr).ok_or(format!("Parser has no expr for `{expr}`"))
+    }
+
     pub fn define(&mut self, expr_type: &str, expr: Expression<'a>) {
-        println!("{expr_type} {expr:#?}");
+        // println!("{expr_type} {expr:#?}");
         self.definitions.insert(expr_type.to_owned(), expr);
     }
 }
