@@ -28,6 +28,7 @@ impl<'a> Parser<'a> {
 
     pub fn parse_tree<T>(&self, lexer: &Lexer, reader: &mut T) -> Result<AbstractSyntaxTree, String>
     where T: Reader {
+        println!("Parsing an Expression");
         let expr = match self.definitions.get("EXPR") {
             Some(expr) => expr,
             None => { 
@@ -35,6 +36,7 @@ impl<'a> Parser<'a> {
             }
         };
         let root = expr.get(lexer, &self, reader)?;
+        reader.commit();
         Ok(AbstractSyntaxTree::new(root))
     }
 

@@ -69,11 +69,18 @@ where
 /// A read-only pointer to a start and end position in a Reader's content
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ReadPointer {
-
+    /// pointer stack
+    stack: Vec<ReadPointer>,
     /// Format (start: line, col, end: line, col)
     pub line_pos: (u32,u32, u32,u32), 
     /// Format (start, end)
     pub read_pos: (u32, u32),
+}
+
+impl std::fmt::Display for ReadPointer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ptr(line:{} col:{} len:{})", self.line_pos.0, self.line_pos.1, self.len())
+    }
 }
 
 impl ReadPointer {
@@ -82,7 +89,7 @@ impl ReadPointer {
     }
 
     pub fn from_pos (line_pos: (u32,u32, u32,u32), read_pos: (u32,u32)) -> ReadPointer {
-        ReadPointer {line_pos, read_pos }
+        ReadPointer {line_pos, read_pos, stack: vec![] }
     }
 
     /// make a new pointer that spans the position from one pointer to another.
@@ -100,10 +107,10 @@ impl ReadPointer {
     /// assert_eq!(ptr3, ReadPointer::from_pos((0,3, 0,9), (3, 9)));
     /// ```
     pub fn from_to(from: &ReadPointer, to: &ReadPointer) -> ReadPointer {
-        ReadPointer {
-            line_pos: (from.line_pos.0, from.line_pos.1, to.line_pos.2, to.line_pos.3),
-            read_pos: (from.read_pos.0, to.read_pos.1),
-        }
+        ReadPointer::from_pos(
+            (from.line_pos.0, from.line_pos.1, to.line_pos.2, to.line_pos.3),
+            (from.read_pos.0, to.read_pos.1),
+        )
     }
 
     /// Move a referenced pointer using the string provided
@@ -166,6 +173,16 @@ impl ReadPointer {
         // (start: line, col, end: line, col)
         self.line_pos.2 = self.line_pos.0;
         self.line_pos.3 = self.line_pos.1;
+    }
+    
+    fn push(&mut self) {
+        self.stack.push(self.clone());
+        println!("PUSH [{}] {self}", self.stack.len())
+    }
+    
+    fn pop(&mut self) {
+        *self = self.stack.pop().unwrap_or_else(|| self.clone());
+        println!("POP  [{}] {self}", self.stack.len())
     }
 
     /// Get the length of a pointer
@@ -237,8 +254,6 @@ pub trait Reader {
 /// let reader = LineReader::new("Line to Read.");
 /// ```
 pub struct LineReader {
-    stack: Vec<ReadPointer>,
-    
     content: String,
     pointer: ReadPointer,
 }
@@ -258,8 +273,6 @@ impl LineReader {
         LineReader{
             content: line.to_string(),
             pointer: ReadPointer::new(),
-
-            stack: vec![],
         }
     }
 
@@ -420,7 +433,9 @@ impl Reader for LineReader {
         };
         
         // ReadPointer::move_pointer(&mut self.pointer, current);
-        self.pointer = ReadPointer::from_to(&self.pointer, &ptr);
+        // Error: the stack is not preserved here so it locks the current state for pop
+        // this creates an error for the Parser where it ignores things it's already found
+        self.pointer = ReadPointer::from_to(&self.pointer, &ptr); // ERROR HERE!!!!!
         Ok(())
     }
     
@@ -453,17 +468,12 @@ impl Reader for LineReader {
     }
 
     fn push(&mut self) {
-        let ptr = self.pointer.clone();
-        self.stack.push(self.pointer.to_owned());
-        self.pointer = ptr;
+        self.pointer.push();
         // println!("Push [{}] {:?}", self.stack.len(), self.pointer);
     }
     
     fn pop(&mut self) {
-        self.pointer = {
-            let ptr = self.pointer.clone();
-            self.stack.pop().unwrap_or(ptr)
-        };
+        self.pointer.pop();
         // println!("Pop [{}] {:?}", self.stack.len(), self.pointer);
     }
     
@@ -616,4 +626,36 @@ mod tests {
         ptr.commit();
         assert_eq!(ptr, ReadPointer::from_pos((1, 6, 1, 6), (9, 9) ));
     }
+
+    #[test]
+fn pointer_push_pop() {
+    // Create a ReadPointer instance
+    let mut ptr = ReadPointer::from_pos((0, 3, 1, 6), (3, 9));
+    // Push the current state
+    let state_0 = ptr.clone();
+    ptr.push();
+    // Modify the pointer's state
+    ptr.increment();
+    ptr.increment_line();
+    // Ensure the pointer's state has changed
+    assert_ne!(ptr, state_0);
+    // Push the current state
+    let state_1 = ptr.clone();
+    ptr.push();
+    // Modify the pointer's state
+    ptr.increment_line();
+    ptr.commit();
+    ptr.increment();
+    // Ensure the pointer's state has changed
+    assert_ne!(ptr, state_0);
+    assert_ne!(ptr, state_1);
+    // Pop the state back
+    ptr.pop();
+    // Ensure the state is restored to the original
+    assert_eq!(ptr, state_1);
+    // Pop the state back
+    ptr.pop();
+    // Ensure the state is restored to the original
+    assert_eq!(ptr, state_0);
+}
 }
