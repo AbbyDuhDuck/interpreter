@@ -107,10 +107,11 @@ impl ReadPointer {
     /// assert_eq!(ptr3, ReadPointer::from_pos((0,3, 0,9), (3, 9)));
     /// ```
     pub fn from_to(from: &ReadPointer, to: &ReadPointer) -> ReadPointer {
-        ReadPointer::from_pos(
-            (from.line_pos.0, from.line_pos.1, to.line_pos.2, to.line_pos.3),
-            (from.read_pos.0, to.read_pos.1),
-        )
+        ReadPointer {
+            line_pos: (from.line_pos.0, from.line_pos.1, to.line_pos.2, to.line_pos.3),
+            read_pos: (from.read_pos.0, to.read_pos.1),
+            stack: from.stack.clone(), // Required for parser backtracking
+        }
     }
 
     /// Move a referenced pointer using the string provided
@@ -177,12 +178,17 @@ impl ReadPointer {
     
     fn push(&mut self) {
         self.stack.push(self.clone());
-        println!("PUSH [{}] {self}", self.stack.len())
+        // println!("PUSH [{}] {self}", self.stack.len())
     }
     
     fn pop(&mut self) {
         *self = self.stack.pop().unwrap_or_else(|| self.clone());
-        println!("POP  [{}] {self}", self.stack.len())
+        // println!("POP  [{}] {self}", self.stack.len())
+    }
+    
+    fn pull(&mut self) {
+        let _ = self.stack.pop();
+        // println!("PULL [{}] {self}", self.stack.len())
     }
 
     /// Get the length of a pointer
@@ -220,6 +226,8 @@ pub trait Reader {
     fn push(&mut self);
 
     fn pop(&mut self);
+
+    fn pull(&mut self);
 
     /// Pulls the pointers start position to the end position.
     fn commit(&mut self);
@@ -427,15 +435,23 @@ impl Reader for LineReader {
     /// 
     fn next<T>(&mut self, size: T) -> Result<(), String> where T: SizeType {
         let count = size.get_size();
-        let ptr = match self.read_next(count) {
-            Some((_val, ptr)) => ptr,
+        let (val, ptr) = match self.read_next(count) {
+            Some((val, ptr)) => (val, ptr),
             None => return Err(String::from("Couldn't read next,.."))
         };
+        let raw = val.to_owned();
         
-        // ReadPointer::move_pointer(&mut self.pointer, current);
-        // Error: the stack is not preserved here so it locks the current state for pop
-        // this creates an error for the Parser where it ignores things it's already found
-        self.pointer = ReadPointer::from_to(&self.pointer, &ptr); // ERROR HERE!!!!!
+        // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- //
+        // Stack for self.pointer must be preserved or there will be a bug that 
+        // prevents compiling.
+        // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- //
+        // Error: the stack is not preserved here so it locks the current state 
+        //   for pop this creates an error for the Parser where it ignores things 
+        //   it's already found.
+        self.pointer = ReadPointer::from_to(&self.pointer, &ptr);
+
+        // better option
+        // ReadPointer::move_pointer(&mut self.pointer, &raw);
         Ok(())
     }
     
@@ -474,6 +490,12 @@ impl Reader for LineReader {
     
     fn pop(&mut self) {
         self.pointer.pop();
+        // println!("Pop [{}] {:?}", self.stack.len(), self.pointer);
+    }
+
+    
+    fn pull(&mut self) {
+        self.pointer.pull();
         // println!("Pop [{}] {:?}", self.stack.len(), self.pointer);
     }
     
@@ -543,6 +565,10 @@ impl Reader for _FileReader {
     }
     
     fn pop(&mut self) {
+        todo!()
+    }
+
+    fn pull(&mut self) {
         todo!()
     }
     

@@ -19,17 +19,17 @@ impl Expression<'_> {
     where
         T: Reader,
     {
-        println!("TRY - {self:?}");
+        // println!("TRY - {self:?}");
         let result = match self {
             Expression::ExprOr(expr) => self.get_expr_or(lexer, parser, reader, expr),
             Expression::SubExpr(expr) => self.get_sub_expr(lexer, parser, reader, expr),
             Expression::Expr(expr) => self.get_expr(lexer, parser, reader, expr),
             Expression::Token(token, value) => self.get_token(lexer, reader, token, value),
         };
-        println!("FOUND ({}) - {}", self.get_name(), match &result {
-            Ok(node) => format!("{node}"),
-            Err(err) => err.into()
-        });
+        // println!("FOUND ({}) - {}", self.get_name(), match &result {
+        //     Ok(node) => format!("{node}"),
+        //     Err(err) => err.into()
+        // });
         result
     }
 
@@ -62,7 +62,7 @@ impl Expression<'_> {
             reader.push();
             match subexpr.get(lexer, parser, reader) {
                 Ok(node) => {
-                    // reader.commit();
+                    reader.pull();
                     return Ok(node);
                 }
                 Err(_) => {
@@ -78,20 +78,13 @@ impl Expression<'_> {
     where
         T: Reader,
     {
-        reader.push();
+        // reader.push();
 
         let mut nodes = vec![];
         for subexpr in expr {
-            let node_result = subexpr.get(lexer, parser, reader);
-            if let Err(err) = node_result {
-                reader.pop();
-                return Err(err)
-            };
-            println!("PTR {}", reader.get_pointer());
-            nodes.push(node_result.unwrap());
+            let node = subexpr.get(lexer, parser, reader)?;
+            nodes.push(node);
         };
-
-        // reader.commit();
         Ok(TreeNode::from_nodes(nodes))
     }
 
@@ -99,12 +92,7 @@ impl Expression<'_> {
     where
         T: Reader,
     {
-        reader.push();
-        let node = parser.get_expr(expr)?.get(lexer, parser, reader);
-        if let Err(_) = node {
-            reader.pop();
-        }
-        node
+        parser.get_expr(expr)?.get(lexer, parser, reader)
     }
 
     pub fn get_token<T>(&self, lexer: &Lexer, reader: &mut T, token: &str, value: &str) -> Result<TreeNode, String>
@@ -372,14 +360,48 @@ mod macro_tests {
             Expr("VAL"),
         ]));
         parser.define("VAL", ExprOr(vec![
-            // SubExpr(vec![ Token("op", "("), Expr("EXPR"), Token("op", ")") ]),
+            SubExpr(vec![ Token("op", "("), Expr("EXPR"), Token("op", ")") ]),
             Expr("NUM"),
         ]));
         parser.define("NUM", Token("num", ""));        
         // Setup Parser
-        let mut reader = LineReader::new("1");
-        // let mut reader = LineReader::new("1+2");
-        // let mut reader = LineReader::new("1+(2+3)");
+        let mut reader = LineReader::new("1+2+3");
+        // Parse an expression
+        let ast = parser.parse_tree(&lexer, &mut reader)?;
+        // Define the expected AST structure
+        let exp = TreeNode::from_expr(ExprOr(vec![
+            Token("num", "1"),
+            Token("op", "+"),
+            SubExpr(vec![
+                Token("num", "2"),
+                Token("op", "+"),
+                Token("num", "3"),
+            ]),
+        ]));
+        // Assert that the AST matches the expected structure
+        assert_ast!(exp, ast);
+        Ok(())
+    }
+
+    #[test]
+    fn test_expect_ast_macro_sub_expr_sub_expr() -> Result<(), String> {
+        // Setup Lexer
+        let mut lexer = Lexer::new();
+        lexer.define("num", "[0-9]+")?;
+        lexer.define("op", "\\+|\\(|\\)")?;
+        // Expressions
+        let mut parser = Parser::new();
+        parser.define("EXPR", ExprOr(vec![
+            SubExpr(vec![ Expr("VAL"), Token("op", "+"), Expr("EXPR") ]),
+            Expr("VAL"),
+        ]));
+        parser.define("VAL", ExprOr(vec![
+            SubExpr(vec![ Token("op", "("), Expr("EXPR"), Token("op", ")") ]),
+            Expr("NUM"),
+        ]));
+        parser.define("NUM", Token("num", ""));        
+        // Setup Parser
+        let mut reader = LineReader::new("1+(2+3)");
         // Parse an expression
         let ast = parser.parse_tree(&lexer, &mut reader)?;
         // Define the expected AST structure
