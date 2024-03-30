@@ -62,11 +62,11 @@ impl Expression<'_> {
             reader.push();
             match subexpr.get(lexer, parser, reader) {
                 Ok(node) => {
-                    reader.pull();
+                    reader.pop();
                     return Ok(node);
                 }
                 Err(_) => {
-                    reader.pop();
+                    reader.back();
                     continue
                 },
             };
@@ -441,7 +441,7 @@ mod tests {
     }
 
     #[test]
-    // #[ignore = "Unimplemented"]
+    #[ignore = "Unimplemented"]
     fn test_get_expr_or() {
         unimplemented!()
     }
