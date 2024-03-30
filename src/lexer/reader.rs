@@ -183,29 +183,82 @@ impl ReadPointer {
         self.line_pos.0 = self.line_pos.2;
         self.line_pos.1 = self.line_pos.3;
     }
-
-    /// Move the end position to equal the start position.
-    // fn back(&mut self) {
-    //     // (start, end)
-    //     self.read_pos.1 = self.read_pos.0;
-    //     // (start: line, col, end: line, col)
-    //     self.line_pos.2 = self.line_pos.0;
-    //     self.line_pos.3 = self.line_pos.1;
-    // }
     
-    /// Push the pointer on the stack to save it's state for one `back` or `pop` call.
+    /// Push the pointer on the stack to save it's state for one 
+    /// [`pop`](ReadPointer::back) or [`pop`](ReadPointer::pop) call.
+    /// 
+    /// ---
+    /// 
+    /// ## Examples
+    /// 
+    /// For restoring the pointer you would use [`back`](ReadPointer::back), this 
+    /// pops an item off the stack and restores the state of the pointer to
+    /// the state before the restore.
+    /// 
+    /// Note: The stack is maintained.
+    /// ``` ignore
+    /// // Create a ReadPointer instance
+    /// use interpreter::lexer::ReadPointer;
+    /// let mut ptr = ReadPointer::from_pos((0, 3, 1, 6), (3, 9));
+    /// // Push the current state then modiyfy it
+    /// let start = ptr.clone();
+    /// ptr.push();
+    /// ptr.increment();
+    /// ptr.increment_line();
+    /// // Ensure the pointer's state has changed
+    /// assert_ne!(ptr, start);
+    /// // restore the state back
+    /// ptr.back();
+    /// // Ensure the state is restored to the original
+    /// assert_eq!(ptr, start);
+    /// ```
+    /// 
+    /// ---
+    /// 
+    /// For restoring the pointer you would use [`pop`](ReadPointer::pop), this pops
+    /// an item off the stack but does not restore the state of the pointer. 
+    /// This is useful for removing your use of the stack, for example: if your
+    /// sub-routine has succeeded.
+    /// 
+    /// Note: The stack is maintained.
+    /// ``` ignore
+    /// // Create a ReadPointer instance
+    /// use interpreter::lexer::ReadPointer;
+    /// let mut ptr = ReadPointer::from_pos((0, 3, 1, 6), (3, 9));
+    /// // Push the current state then modiyfy it
+    /// let start = ptr.clone();
+    /// ptr.push();
+    /// ptr.increment();
+    /// ptr.increment_line();
+    /// let new = ptr.clone();
+    /// // Ensure the pointer's state has changed
+    /// assert_ne!(ptr, start);
+    /// // Pop the state back
+    /// ptr.pop();
+    /// // Ensure pointer keeps its current state
+    /// assert_eq!(ptr, new);
+    /// assert_ne!(ptr, start);
+    /// ```
     fn push(&mut self) {
         self.stack.push(self.clone());
         // println!("PUSH [{}] {self}", self.stack.len())
     }
     
     /// Restore the pointer and Pop the pointer off the stack
+    /// 
+    /// ---
+    /// 
+    /// See: [`ReadPointer::push`]
     fn back(&mut self) {
         *self = self.stack.pop().unwrap_or_else(|| self.clone());
         // println!("POP  [{}] {self}", self.stack.len())
     }
     
     /// pop the pointer off the stack without restoring the pointer
+    /// 
+    /// ---
+    /// 
+    /// See: [`ReadPointer::push`]
     fn pop(&mut self) {
         let _ = self.stack.pop();
         // println!("PULL [{}] {self}", self.stack.len())
@@ -243,22 +296,37 @@ pub trait Reader {
     /// Move the pointer ahead by the size of the supplied value.
     fn next<T>(&mut self, size: T) -> Result<(), String> where T: SizeType;
 
-    
+    // -=- Pointer -=- //
+
     /// pop the pointer off the stack without restoring the pointer
+    /// 
+    /// ---
+    /// 
+    /// See: [`ReadPointer`]
     fn pop(&mut self);
     
     /// Push the pointer on the stack to save it's state for one `back` or `pop` call.
+    /// 
+    /// ---
+    /// 
+    /// See: [`ReadPointer`]
     fn push(&mut self);
     
     /// Restore the pointer and Pop the pointer off the stack
+    /// 
+    /// ---
+    /// 
+    /// See: [`ReadPointer`]
     fn back(&mut self);
 
     /// Pulls the pointers start position to the end position.
+    /// 
+    /// ---
+    /// 
+    /// See: [`ReadPointer`]
     fn commit(&mut self);
-
-    /// resturn to the start pointer
     
-    // -=- Pointer -=- //
+    // -=- Pointer Getters -=-=- //
     
     /// Get the current pointer value
     fn get_pointer(&self) -> &ReadPointer;
@@ -496,20 +564,75 @@ impl Reader for LineReader {
     /// 
     /// let val: &str = reader.read_current().unwrap();
     /// assert_eq!("def", val);
-    /// ``` 
+    /// ```
+    /// 
+    /// ---
+    /// 
+    /// See: [`ReadPointer`]
     fn commit(&mut self) {
         self.pointer.commit();
         // println!("Commit {:?}", self.pointer);
     }
 
     
-    /// Restore the pointer and Pop the pointer off the stack
+    /// Restore the pointer and Pop the pointer off the stack.
+    /// 
+    /// ---
+    /// 
+    /// ## Example
+    /// 
+    /// ```
+    /// // Create a ReadPointer instance
+    /// use interpreter::lexer::{Reader, LineReader};
+    /// let mut reader = LineReader::new("abcdefg");
+    /// // Read the next 3 chars
+    /// reader.next(3);
+    /// assert_eq!("abc", reader.read_current().unwrap());
+    /// // save then move the pointer
+    /// reader.push();
+    /// reader.commit();
+    /// // Read the next 3 chars
+    /// reader.next(3);
+    /// assert_eq!("def", reader.read_current().unwrap());
+    /// // restore the pointer
+    /// reader.back();
+    /// assert_eq!("abc", reader.read_current().unwrap());
+    /// ```
+    /// 
+    /// ---
+    /// 
+    /// ```
+    /// // Create a ReadPointer instance
+    /// use interpreter::lexer::{Reader, LineReader};
+    /// let mut reader = LineReader::new("abcdefg");
+    /// // Read the next 3 chars
+    /// reader.next(3);
+    /// assert_eq!("abc", reader.read_current().unwrap());
+    /// // save then move the pointer
+    /// reader.push();
+    /// reader.commit();
+    /// // Read the next 3 chars
+    /// reader.next(3);
+    /// assert_eq!("def", reader.read_current().unwrap());
+    /// // pop your use of the pointer
+    /// reader.pop();
+    /// assert_eq!("def", reader.read_current().unwrap());
+    /// ```
+    /// 
+    /// ---
+    /// 
+    /// See: [`ReadPointer`]
     fn push(&mut self) {
         self.pointer.push();
         // println!("Push [{}] {:?}", self.stack.len(), self.pointer);
     }
     
-    /// pop the pointer off the stack without restoring the pointer
+    /// pop the pointer off the stack without restoring the pointer.
+    /// 
+    /// ---
+    /// 
+    /// See: [`LineReader::push`]
+    /// See Also: [`ReadPointer`]
     fn pop(&mut self) {
         self.pointer.pop();
         // println!("Pop [{}] {:?}", self.stack.len(), self.pointer);
@@ -517,6 +640,11 @@ impl Reader for LineReader {
     
     
     /// Push the pointer on the stack to save it's state for one `back` or `pop` call.
+    /// 
+    /// ---
+    /// 
+    /// See: [`LineReader::push`]
+    /// See Also: [`ReadPointer`]
     fn back(&mut self) {
         self.pointer.back();
         // println!("Pop [{}] {:?}", self.stack.len(), self.pointer);
