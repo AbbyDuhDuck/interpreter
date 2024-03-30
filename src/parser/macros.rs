@@ -1,37 +1,73 @@
+//! # AST Assertion Macros
+//! 
+//! This is where the [`assert_ast`] and [`assert_ast_ne`] macros are defined and tested.
+//! 
+
 
 // -=-=-=-=- Testing Macros -=-=-=-=- //
 
+/// Asserts that two [Abstract Syntax Trees](crate::parser::syntax::AbstractSyntaxTree) 
+/// are equal to each other (using [`PartialEq`]).
+///
+/// On panic, this macro will print the values of the expressions with their debug representations.
+///
+/// Like [`assert`], this macro has a second form, where a custom panic message can be provided
 #[macro_export]
 macro_rules! assert_ast {
     ( $ast:expr, $expected:expr ) => {
         {
             let ast_str = format!("{}", $ast);
             let expected_str = format!("{}", $expected);
-            assert_eq!(ast_str, expected_str, "Expected AST: {}, Actual AST: {}", expected_str, ast_str);
+            assert_eq!(ast_str, expected_str, "When trying to match ASTs:");
+        }
+    };
+    ( $ast:expr, $expected:expr, $($arg:tt)+ ) => {
+        {
+            let ast_str = format!("{}", $ast);
+            let expected_str = format!("{}", $expected);
+            assert_eq!(ast_str, expected_str, "When trying to match ASTs: {}", format!($($arg)+));
         }
     };
 }
+
+/// Asserts that two expressions are equal to each other (using [`PartialEq`]).
+///
+/// On panic, this macro will print the values of the expressions with their debug representations.
+///
+/// Like [`assert`], this macro has a second form, where a custom panic message can be provided
 #[macro_export]
 macro_rules! assert_ast_ne {
     ( $ast:expr, $expected:expr ) => {
         {
             let ast_str = format!("{}", $ast);
             let expected_str = format!("{}", $expected);
-            assert_ne!(ast_str, expected_str, "Expected AST: {}, Actual AST: {}", expected_str, ast_str);
+            assert_ne!(ast_str, expected_str, "Both are equal when trying to match ASTs:");
+        }
+    };
+    ( $ast:expr, $expected:expr, $($arg:tt)+ ) => {
+        {
+            let ast_str = format!("{}", $ast);
+            let expected_str = format!("{}", $expected);
+            let msg = format!($($arg)+);
+            assert_ne!(ast_str, expected_str, "Both are equal when trying to match ASTs: {}", msg);
         }
     };
 }
 
 // -=-=-=-=- Unit Tests -=-=-=-=- //
 
+/// Test that [`assert_ast`] and [`assert_ast_ne`] are working properly.
 #[cfg(test)]
 mod tests {
+    // lexer
     use crate::lexer::Lexer;
     use crate::lexer::LineReader;
+    // parser
     use crate::parser::Parser;
     use crate::parser::syntax::TreeNode;
     use crate::parser::syntax::Expression::*;
     
+    /// assert two [tokens](Token) can be matched with [`assert_ast`].
     #[test]
     fn assert_ast_token() -> Result<(), String> {
         // Setup Lexer and Parser
@@ -49,7 +85,7 @@ mod tests {
         Ok(())
     }
 
-    
+    /// assert two [tokens](Token) are different with [`assert_ast_ne`].
     #[test]
     fn assert_ast_ne_macro_token() -> Result<(), String> {
         // Setup Lexer and Parser
@@ -67,6 +103,7 @@ mod tests {
         Ok(())
     }
 
+    /// assert an [`ExprOr`] expression.
     #[test]
     fn assert_ast_expr_or() -> Result<(), String> {
         // Setup Lexer
@@ -98,6 +135,7 @@ mod tests {
         Ok(())
     }
     
+    /// assert an [`ExprOr`] expression that contains a [`SubExpr`].
     #[test]
     fn assert_ast_expr_or_sub_expr() -> Result<(), String> {
         // Setup Lexer
@@ -135,6 +173,7 @@ mod tests {
         Ok(())
     }
 
+    /// assert an [`Expr`] expression.
     #[test]
     fn assert_ast_expr() -> Result<(), String> {
         // Setup Lexer
@@ -143,9 +182,7 @@ mod tests {
         lexer.define("op", "\\(|\\)")?;
         // Setup Parser
         let mut parser = Parser::new();
-        parser.define("EXPR", ExprOr(vec![
-            Expr("NUM"),
-        ]));
+        parser.define("EXPR", Expr("NUM"));
         parser.define("NUM", Token("tok", ""));    
         // Setup Parser
         let mut reader = LineReader::new("token");
@@ -158,6 +195,7 @@ mod tests {
         Ok(())
     }
 
+    /// assert a [`SubExpr`] expression without recursion.
     #[test]
     fn assert_ast_sub_expr() -> Result<(), String> {
         // Setup Lexer
@@ -194,6 +232,7 @@ mod tests {
         Ok(())
     }
 
+    /// assert a [`SubExpr`] expression with recursion.
     #[test]
     fn assert_ast_sub_expr_sub_expr() -> Result<(), String> {
         // Setup Lexer
