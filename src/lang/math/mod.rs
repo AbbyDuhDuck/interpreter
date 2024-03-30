@@ -6,14 +6,11 @@ use crate::parser::{self, syntax};
 pub use math::*;
 
 pub mod math {
-    use std::collections::HashMap;
-
     use super::parser::Parser;
-
     use super::lexer::Lexer;
 
-    use super::syntax::Expression::*;
     use super::syntax::Expression;
+    use super::syntax::Expression::*;
     use once_cell::sync::Lazy;
 
     pub const LEXER: Lazy<Lexer> = Lazy::new(|| {
