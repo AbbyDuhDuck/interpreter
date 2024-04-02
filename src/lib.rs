@@ -5,6 +5,7 @@
 mod macros;
 pub mod lexer;
 pub mod parser;
+pub mod exec;
 pub mod lang;
 
 /// run a basic input loop where the user will be prompted with `@>` or `#>` to enter
@@ -77,6 +78,9 @@ pub fn exec(expr_str: &str) -> Result<String, String>{
     println!("AST:\n{ast:}");
 
     // -=- interpreter -=- //
+    let env = math::ENV;
+    let result = env.exec(ast);
+    println!("Result: {result:?}");
 
     // just ping back the input for now
     Ok(format!("Ping: {expr_str:?}"))

@@ -113,7 +113,7 @@ mod tests {
         lexer.define("tok:c", "[g-i]+")?;
         // Setup Parser
         let mut parser = Parser::new();
-        parser.define("EXPR", ExprOr(vec![
+        parser.define("EXPR", ExprOr(&[
             Token("tok:a", ""),
             Token("tok:b", ""),
             Token("tok:c", ""),
@@ -145,8 +145,8 @@ mod tests {
         lexer.define("tok:c", "[g-i]+")?;
         // Setup Parser
         let mut parser = Parser::new();
-        parser.define("EXPR", ExprOr(vec![
-            SubExpr(vec![Token("tok:a", ""), Token("tok:b", ""),]),
+        parser.define("EXPR", ExprOr(&[
+            SubExpr(&[Token("tok:a", ""), Token("tok:b", ""),]),
             Token("tok:a", ""),
             Token("tok:c", ""),
         ]));
@@ -159,7 +159,7 @@ mod tests {
         let ast_4 = parser.parse_tree(&lexer, &mut reader)?;
         // Define the expected AST structure
         let exp_1 = TreeNode::from_token(Token("tok:c", "ghi").token());
-        let exp_2 = TreeNode::from_expr(SubExpr(vec![
+        let exp_2 = TreeNode::from_expr(&SubExpr(&[
             Token("tok:a", "abc"),
             Token("tok:b", "def"),
         ]));
@@ -204,12 +204,12 @@ mod tests {
         lexer.define("op", "\\+|\\(|\\)")?;
         // Expressions
         let mut parser = Parser::new();
-        parser.define("EXPR", ExprOr(vec![
-            SubExpr(vec![ Expr("VAL"), Token("op", "+"), Expr("EXPR") ]),
+        parser.define("EXPR", ExprOr(&[
+            SubExpr(&[ Expr("VAL"), Token("op", "+"), Expr("EXPR") ]),
             Expr("VAL"),
         ]));
-        parser.define("VAL", ExprOr(vec![
-            SubExpr(vec![ Token("op", "("), Expr("EXPR"), Token("op", ")") ]),
+        parser.define("VAL", ExprOr(&[
+            SubExpr(&[ Token("op", "("), Expr("EXPR"), Token("op", ")") ]),
             Expr("NUM"),
         ]));
         parser.define("NUM", Token("num", ""));        
@@ -218,10 +218,10 @@ mod tests {
         // Parse an expression
         let ast = parser.parse_tree(&lexer, &mut reader)?;
         // Define the expected AST structure
-        let exp = TreeNode::from_expr(ExprOr(vec![
+        let exp = TreeNode::from_expr(&ExprOr(&[
             Token("num", "1"),
             Token("op", "+"),
-            SubExpr(vec![
+            SubExpr(&[
                 Token("num", "2"),
                 Token("op", "+"),
                 Token("num", "3"),
@@ -241,12 +241,12 @@ mod tests {
         lexer.define("op", "\\+|\\(|\\)")?;
         // Expressions
         let mut parser = Parser::new();
-        parser.define("EXPR", ExprOr(vec![
-            SubExpr(vec![ Expr("VAL"), Token("op", "+"), Expr("EXPR") ]),
+        parser.define("EXPR", ExprOr(&[
+            SubExpr(&[ Expr("VAL"), Token("op", "+"), Expr("EXPR") ]),
             Expr("VAL"),
         ]));
-        parser.define("VAL", ExprOr(vec![
-            SubExpr(vec![ Token("op", "("), Expr("EXPR"), Token("op", ")") ]),
+        parser.define("VAL", ExprOr(&[
+            SubExpr(&[ Token("op", "("), Expr("EXPR"), Token("op", ")") ]),
             Expr("NUM"),
         ]));
         parser.define("NUM", Token("num", ""));        
@@ -255,12 +255,12 @@ mod tests {
         // Parse an expression
         let ast = parser.parse_tree(&lexer, &mut reader)?;
         // Define the expected AST structure
-        let exp = TreeNode::from_expr(ExprOr(vec![
+        let exp = TreeNode::from_expr(&ExprOr(&[
             Token("num", "1"),
             Token("op", "+"),
-            SubExpr(vec![
+            SubExpr(&[
                 Token("op", "("),
-                SubExpr(vec![
+                SubExpr(&[
                     Token("num", "2"),
                     Token("op", "+"),
                     Token("num", "3"),

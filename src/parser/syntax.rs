@@ -3,14 +3,14 @@
 //! Using a tree of [expressions](Expression) you can build a defition to add to a [`Parser`].
 //! 
 
-use crate::lexer::{Lexer, ReadPointer, Reader, Token};
+use crate::{exec::syntax::Lambda, lexer::{Lexer, ReadPointer, Reader, Token}};
 use super::Parser;
 
 /// Used to define an expression for the [`Parser`] to parse.
 #[derive(Clone, Debug)]
 pub enum Expression<'a> {
-    ExprOr(Vec<Self>),
-    SubExpr(Vec<Self>),
+    ExprOr(&'a[Self]),
+    SubExpr(&'a[Self]),
     Expr(&'a str),
     Token(&'a str, &'a str),
 }
@@ -45,11 +45,11 @@ impl Expression<'_> {
 
     /// Get the resulting [TreeNode] for an [`ExprOr`](Expression::ExprOr) 
     /// using the passed [`Lexer`], [`Parser`], and [`Reader`].
-    fn get_expr_or<T>(&self, lexer: &Lexer, parser: &Parser, reader: &mut T, expr: &Vec<Expression>) -> Result<TreeNode, String>
+    fn get_expr_or<T>(&self, lexer: &Lexer, parser: &Parser, reader: &mut T, expr: &&[Expression]) -> Result<TreeNode, String>
     where
         T: Reader,
     {
-        for subexpr in expr {
+        for subexpr in expr.iter() {
             reader.push();
             match subexpr.get(lexer, parser, reader) {
                 Ok(node) => {
@@ -67,7 +67,7 @@ impl Expression<'_> {
 
     /// Get the resulting [TreeNode] for a [`SubExpr`](Expression::SubExpr) 
     /// using the passed [`Lexer`], [`Parser`], and [`Reader`].
-    fn get_sub_expr<T>(&self, lexer: &Lexer, parser: &Parser, reader: &mut T, expr: &Vec<Expression>) -> Result<TreeNode, String>
+    fn get_sub_expr<T>(&self, lexer: &Lexer, parser: &Parser, reader: &mut T, expr: &&[Expression]) -> Result<TreeNode, String>
     where
         T: Reader,
     {
@@ -110,6 +110,7 @@ impl Expression<'_> {
 pub struct TreeNode {
     nodes: Vec<Self>,
     leaf: Option<Token>,
+    node_type: String,
 }
 
 /// Implement display so the [`TreeNode`] can be displayed nicely.
@@ -142,12 +143,12 @@ impl TreeNode {
 
     /// Make a leaf node from a [`Token`]
     pub fn from_token(token: Token) -> TreeNode {
-        TreeNode { nodes: vec![], leaf: Some(token) }
+        TreeNode { nodes: vec![], leaf: Some(token), node_type: String::new() }
     }
     
     /// Make a branch node from a vector of [TreeNodes](TreeNode).
     pub fn from_nodes(nodes: Vec<TreeNode>) -> TreeNode {
-        TreeNode { nodes, leaf: None }
+        TreeNode { nodes, leaf: None, node_type: String::new() }
     }
 
     /// Make a symbolic [TreeNode] representation of a static [Expression].
@@ -156,7 +157,7 @@ impl TreeNode {
     /// 
     /// You cannot use [`Expr`](Expression::Expr) in a static representation as
     /// there is no [`Parser`] to reference.
-    pub fn from_expr<'a>(expr: Expression<'a>) -> TreeNode {
+    pub fn from_expr<'a>(expr: &Expression<'a>) -> TreeNode {
         match expr {
             Expression::ExprOr(nodes) | Expression::SubExpr(nodes) => {
                 let nodes = nodes.into_iter().map(TreeNode::from_expr).collect();
@@ -170,6 +171,11 @@ impl TreeNode {
                 TreeNode::from_token(tok)
             }
         }
+    }
+
+    pub fn set_type(&mut self, node_type: String) -> &Self {
+        self.node_type = node_type;
+        self
     }
 
     /// Add a [`TreeNode`] branch. 
@@ -228,7 +234,7 @@ mod tests {
         lexer.define("tok:c", "[g-i]+")?;
         // Setup Parser
         let mut parser = Parser::new();
-        parser.define("EXPR", ExprOr(vec![
+        parser.define("EXPR", ExprOr(&[
             Token("tok:a", ""),
             Token("tok:b", ""),
             Token("tok:c", ""),
@@ -259,8 +265,8 @@ mod tests {
         lexer.define("op", "\\+|\\(|\\)")?;
         // Expressions
         let mut parser = Parser::new();
-        parser.define("EXPR", ExprOr(vec![
-            SubExpr(vec![ Expr("NUM"), Token("op", "+"), Expr("EXPR") ]),
+        parser.define("EXPR", ExprOr(&[
+            SubExpr(&[ Expr("NUM"), Token("op", "+"), Expr("EXPR") ]),
             Expr("NUM"),
         ]));
         parser.define("NUM", Token("num", ""));        
@@ -269,10 +275,10 @@ mod tests {
         // Parse an expression
         let ast = parser.parse_tree(&lexer, &mut reader)?;
         // Define the expected AST structure
-        let exp = TreeNode::from_expr(ExprOr(vec![
+        let exp = TreeNode::from_expr(&ExprOr(&[
             Token("num", "1"),
             Token("op", "+"),
-            SubExpr(vec![
+            SubExpr(&[
                 Token("num", "2"),
                 Token("op", "+"),
                 Token("num", "3"),
@@ -332,8 +338,8 @@ mod tests {
         lexer.define("op", "\\(|\\)")?;
 
         let mut parser = Parser::new();
-        parser.define("EXPR", ExprOr(vec![
-            SubExpr(vec![ Token("op", "("), Expr("EXPR"), Token("op", ")")]),
+        parser.define("EXPR", ExprOr(&[
+            SubExpr(&[ Token("op", "("), Expr("EXPR"), Token("op", ")")]),
             Expr("TOK"),
         ]));
         parser.define("TOK", Token("tok", ""));
@@ -345,9 +351,9 @@ mod tests {
         let ast = parser.parse_tree(&lexer, &mut reader)?;
 
         // Define the expected AST structure
-        let exp = TreeNode::from_expr(ExprOr(vec![
+        let exp = TreeNode::from_expr(&ExprOr(&[
             Token("op", "("),
-            SubExpr(vec![
+            SubExpr(&[
                 Token("op", "("),
                 Token("tok", "token"),
                 Token("op", ")"),

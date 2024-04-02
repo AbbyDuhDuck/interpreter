@@ -90,9 +90,9 @@ The UniOp `!` is the required operator which makes the interpreter throw a compi
 expr ::= math:expr
 
 // prefered
-math:expr ::= math:term op:+ math:expr!
-            | math:term op:- math:expr!
-            | math:term
+math:expr ::= math:term op:+ math:expr! { ADD $1 $3 }
+            | math:term op:- math:expr! { SUB $1 $3 }
+            | math:term { EVAL $ }
 
 // allowed but not prefered
 math:term ::= math:factor ( ( op:* | op:/ ) math:term! )?
@@ -102,12 +102,35 @@ math:term ::= math:factor math:term:0?
 math:term:0 ::= math:term:1 math:term!
 math:term:1 ::= op:* | op:/
 
-math:factor ::= op:( math:expr ( op:) )!
-              | math:num 
-              | math:var
+math:factor ::= op:( math:expr ( op:) )!    {( EVAL $2 )}
+              | math:num                    { EVAL }
+              | math:var                    { EVAL }
 
-math:num ::= int: | float:
-math:var ::= ident:
+math:num ::= int:       { INTEGER } 
+           | float:     { FLOAT }
+math:var ::= ident:     { GET_IDENT }
+```
+
+```
+INTEGER -> Value<i32> => {
+    $.as_value<i32>
+}
+
+FLOAT -> Value<f32> => {
+    $.as_value<f32>
+}
+
+GET_IDENT -> Value => {
+    $$.get_value( $.as_ident )
+}
+
+ADD $a $b -> Value => {
+    $a.as_value + $b.as_value
+}
+
+SUB $a $b -> Value => {
+    $a.as_value - $b.as_value
+}
 ```
 
 ## Info
