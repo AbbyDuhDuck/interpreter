@@ -92,7 +92,7 @@ expr ::= math:expr
 // prefered
 math:expr ::= math:term op:+ math:expr! { ADD $1 $3 }
             | math:term op:- math:expr! { SUB $1 $3 }
-            | math:term { EVAL $ }
+            | math:term                 { EVAL $ }
 
 // allowed but not prefered
 math:term ::= math:factor ( ( op:* | op:/ ) math:term! )?

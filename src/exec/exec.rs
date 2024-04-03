@@ -1,6 +1,6 @@
 
 
-use std::ops::Add;
+use std::ops::{Add, Div, Mul, Sub};
 
 use crate::{lexer::Token, parser::syntax::{AbstractSyntaxTree, TreeNode}};
 
@@ -71,6 +71,27 @@ impl Add for StateNode {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
+        todo!()
+    }
+}
+impl Sub for StateNode {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        todo!()
+    }
+}
+impl Mul for StateNode {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        todo!()
+    }
+}
+impl Div for StateNode {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self::Output {
         todo!()
     }
 }

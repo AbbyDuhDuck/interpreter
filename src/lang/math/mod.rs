@@ -69,17 +69,26 @@ pub mod math {
         env.define("ADD", |frame, | {
             match frame.eval() {
                 Exec::BinOp(lhs, rhs) => lhs + rhs,
-                _ => RuntimeErr("Something".into()),
+                _ => RuntimeErr("Something add".into()),
             }
         });
         env.define("SUB", |frame, | {
-            None
+            match frame.eval() {
+                Exec::BinOp(lhs, rhs) => lhs - rhs,
+                _ => RuntimeErr("Something sub".into()),
+            }
         });
         env.define("MULT", |frame, | {
-            None
+            match frame.eval() {
+                Exec::BinOp(lhs, rhs) => lhs * rhs,
+                _ => RuntimeErr("Something mult".into()),
+            }
         });
         env.define("DIV", |frame, | {
-            None
+            match frame.eval() {
+                Exec::BinOp(lhs, rhs) => lhs / rhs,
+                _ => RuntimeErr("Something div".into()),
+            }
         });
         env.define("INTEGER", |frame, | {
             frame.eval_as::<i32>()
