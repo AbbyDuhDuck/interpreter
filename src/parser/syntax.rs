@@ -3,7 +3,7 @@
 //! Using a tree of [expressions](Expression) you can build a defition to add to a [`Parser`].
 //! 
 
-use crate::{exec::syntax::Lambda, lexer::{Lexer, ReadPointer, Reader, Token}};
+use crate::lexer::{Lexer, ReadPointer, Reader, Token};
 use super::Parser;
 
 /// Used to define an expression for the [`Parser`] to parse.
@@ -222,6 +222,7 @@ impl AbstractSyntaxTree {
 mod tests {
     use super::*;
     use crate::lexer::LineReader;
+    use crate::exec::syntax::Lambda::Eval;
     use Expression::*;
 
     /// assert an [`ExprOr`] expression.
@@ -238,7 +239,7 @@ mod tests {
             Token("tok:a", ""),
             Token("tok:b", ""),
             Token("tok:c", ""),
-        ]));
+        ]), Eval);
         // Setup Reader
         let mut reader = LineReader::new("abcdefghi");
         // Parse an expression
@@ -268,8 +269,8 @@ mod tests {
         parser.define("EXPR", ExprOr(&[
             SubExpr(&[ Expr("NUM"), Token("op", "+"), Expr("EXPR") ]),
             Expr("NUM"),
-        ]));
-        parser.define("NUM", Token("num", ""));        
+        ]), Eval);
+        parser.define("NUM", Token("num", ""), Eval);        
         // Setup Parser
         let mut reader = LineReader::new("1+2+3");
         // Parse an expression
@@ -298,8 +299,8 @@ mod tests {
         lexer.define("op", "\\(|\\)")?;
         // Setup Parser
         let mut parser = Parser::new();
-        parser.define("EXPR", Expr("NUM"));
-        parser.define("NUM", Token("tok", ""));    
+        parser.define("EXPR", Expr("NUM"), Eval);
+        parser.define("NUM", Token("tok", ""), Eval);    
         // Setup Parser
         let mut reader = LineReader::new("token");
         // Parse an expression
@@ -318,7 +319,7 @@ mod tests {
         let mut lexer = Lexer::new();
         lexer.define("tok:a", "[a-c]+")?;
         let mut parser = Parser::new();
-        parser.define("EXPR", Token("tok:a", ""));
+        parser.define("EXPR", Token("tok:a", ""), Eval);
         let mut reader = LineReader::new("abc");
         // Parse an expression
         let ast = parser.parse_tree(&lexer, &mut reader)?;
@@ -341,8 +342,8 @@ mod tests {
         parser.define("EXPR", ExprOr(&[
             SubExpr(&[ Token("op", "("), Expr("EXPR"), Token("op", ")")]),
             Expr("TOK"),
-        ]));
-        parser.define("TOK", Token("tok", ""));
+        ]), Eval);
+        parser.define("TOK", Token("tok", ""), Eval);
         
         // let mut reader = LineReader::new("token");
         let mut reader = LineReader::new("((token))");

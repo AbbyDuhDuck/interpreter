@@ -19,28 +19,44 @@ pub mod math {
 
     pub const PARSER: Lazy<Parser> = Lazy::new(|| {
         use crate::parser::syntax::Expression::*;
+        use crate::exec::syntax::Lambda::*;
         let mut parser = Parser::new();
-        let _ = parser.define("EXPR", Expr("MATH:EXPR"));
+        let _ = parser.define("EXPR", Expr("MATH:EXPR"), Eval);
         let _ = parser.define("MATH:EXPR", ExprOr(&[
             SubExpr(&[ Expr("TERM"), Token("op", "+"), Expr("MATH:EXPR") ]),
             SubExpr(&[ Expr("TERM"), Token("op", "-"), Expr("MATH:EXPR") ]),
             Expr("TERM"),
+        ]), LambdaOr(&[
+            Lambda("ADD", &[1, 3]),
+            Lambda("SUB", &[1, 3]),
+            Eval,
         ]));
         let _ = parser.define("TERM", ExprOr(&[
             SubExpr(&[ Expr("FACTOR"), Token("op", "*"), Expr("TERM") ]),
             SubExpr(&[ Expr("FACTOR"), Token("op", "/"), Expr("TERM") ]),
             Expr("FACTOR"),
+        ]), LambdaOr(&[
+            Lambda("MULT", &[1, 3]),
+            Lambda("DIV", &[1, 3]),
+            Eval,
         ]));
         let _ = parser.define("FACTOR", ExprOr(&[
             SubExpr(&[ Token("op", "("), Expr("MATH:EXPR"), Token("op", ")")]),
             Expr("NUM"),
             Expr("VAR"),
+        ]), LambdaOr(&[
+            GetExpr(2, &Eval),
+            Eval,
+            Eval,
         ]));
         let _ = parser.define("NUM", ExprOr(&[
             Token("float", ""),
             Token("int", ""),
+        ]), LambdaOr(&[
+            EvalAs("FLOAT"),
+            EvalAs("INTEGER"),
         ]));
-        let _ = parser.define("VAR", Token("ident", ""));
+        let _ = parser.define("VAR", Token("ident", ""), EvalAs("GET_IDENT"));
         parser
     });
 
@@ -49,49 +65,29 @@ pub mod math {
         use crate::exec::StateNode::*;
         use crate::exec::Exec;
         let mut env = VirtualEnv::new();
-        env.define("MATH:EXPR", ExprOr(&[
-            Lambda("ADD", &[1, 3]),
-            Lambda("SUB", &[1, 3]),
-            Lambda("EVAL", &[]),
-        ]));
-        env.define("TERM", ExprOr(&[
-            Lambda("MULT", &[1, 3]),
-            Lambda("DIV", &[1, 3]),
-            Lambda("EVAL", &[]),
-        ]));
-        env.define("FACTOR", ExprOr(&[
-            Lambda("EVAL", &[2]),
-            Lambda("EVAL", &[]),
-            Lambda("EVAL", &[]),
-        ]));
-        env.define("NUM", ExprOr(&[
-            Lambda("INTEGER", &[]),
-            Lambda("FLOAT", &[]),
-        ]));
-        env.define("VAR", Lambda("GET_IDENT", &[1, 3]),);
-
-        env.lambda("ADD", |frame, | {
+       
+        env.define("ADD", |frame, | {
             match frame.eval() {
                 Exec::BinOp(lhs, rhs) => lhs + rhs,
                 _ => RuntimeErr("Something".into()),
             }
         });
-        env.lambda("SUB", |frame, | {
+        env.define("SUB", |frame, | {
             None
         });
-        env.lambda("MULT", |frame, | {
+        env.define("MULT", |frame, | {
             None
         });
-        env.lambda("DIV", |frame, | {
+        env.define("DIV", |frame, | {
             None
         });
-        env.lambda("INTEGER", |frame, | {
+        env.define("INTEGER", |frame, | {
             frame.eval_as::<i32>()
         });
-        env.lambda("FLOAT", |frame, | {
+        env.define("FLOAT", |frame, | {
             frame.eval_as::<f32>()
         });
-        env.lambda("GET_IDENT", |frame, | {
+        env.define("GET_IDENT", |frame, | {
             RuntimeErr("tthign".into())
         });
         env

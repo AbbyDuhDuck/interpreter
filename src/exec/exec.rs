@@ -27,11 +27,11 @@ impl VirtualEnv {
         StateNode::None
     }
 
-    pub fn define(&mut self, node_type: &str, lambda: Lambda) {
+    // pub fn define(&mut self, node_type: &str, lambda: Lambda) {
 
-    }
+    // }
 
-    pub fn lambda(&mut self, lambda_type: &str, 
+    pub fn define(&mut self, lambda_type: &str, 
         cb: fn (frame: EnvFrame) -> StateNode
     ) {
 

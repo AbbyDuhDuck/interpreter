@@ -8,7 +8,7 @@
 //! 
 
 use std::collections::HashMap;
-use crate::lexer::{Lexer, Reader};
+use crate::{exec::syntax::Lambda, lexer::{Lexer, Reader}};
 use super::syntax::{Expression, AbstractSyntaxTree};
 
 /// Parser has all the language syntax for a language. It can extract the next Abstract
@@ -43,7 +43,8 @@ impl<'a> Parser<'a> {
     }
 
     /// Define an [`Expression`] that can be matched in [`parse_tree`](Parser::parse_tree).
-    pub fn define(&mut self, expr_type: &str, expr: Expression<'a>) {
+    pub fn define(&mut self, expr_type: &str, expr: Expression<'a>, lambda: Lambda) {
+        // transform to a sub object with both an expr and a lambda
         self.definitions.insert(expr_type.to_owned(), expr);
     }
 }
