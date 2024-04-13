@@ -8,13 +8,14 @@
 //! 
 
 use std::collections::HashMap;
-use crate::{exec::syntax::Lambda, lexer::{Lexer, Reader}};
-use super::syntax::{Expression, AbstractSyntaxTree};
+use crate::lexer::{Lexer, Reader};
+use crate::exec::syntax::Lambda;
+use super::syntax::{AbstractSyntaxTree, Expression, TreeNode};
 
 /// Parser has all the language syntax for a language. It can extract the next Abstract
 /// Syntax Tree ([AST](AbstractSyntaxTree)) from a [`Reader`] using a [`Lexer`]. 
 pub struct Parser<'a> {
-    definitions: HashMap<String, Expression<'a>>
+    definitions: HashMap<String, ParserDef<'a>>
 }
 
 impl<'a> Parser<'a> {
@@ -38,15 +39,37 @@ impl<'a> Parser<'a> {
     }
 
     /// Get a defined [`Expression`] from the parser.
-    pub fn get_expr(&self, expr: &str) -> Result<&Expression, String> {
-        self.definitions.get(expr).ok_or(format!("Parser has no expr for `{expr}`"))
+    pub fn get_expr(&self, expr: &str) -> Result<&ParserDef, String> {
+        self.definitions.get(expr).ok_or_else(|| format!("Parser has no definition for `{expr}`"))
     }
 
     /// Define an [`Expression`] that can be matched in [`parse_tree`](Parser::parse_tree).
-    pub fn define(&mut self, expr_type: &str, expr: Expression<'a>, lambda: Lambda) {
+    pub fn define(&mut self, expr_type: &str, expr: Expression<'a>, lambda: Lambda<'a>) {
         // transform to a sub object with both an expr and a lambda
-        self.definitions.insert(expr_type.to_owned(), expr);
+        self.definitions.insert(expr_type.to_owned(), ParserDef::from(expr, lambda));
     }
+}
+
+// -=-=- Parser Definition -=-=- //
+
+pub struct ParserDef<'a> {
+    expr: Expression<'a>,
+    lambda: Lambda<'a>,
+}
+
+impl ParserDef<'_> {
+    pub fn from<'a>(expr: Expression<'a>, lambda: Lambda<'a>) -> ParserDef<'a> {
+        ParserDef { expr, lambda }
+    }
+
+    // -=-=- //
+
+    pub fn get<T>(&self, lexer: &Lexer, parser: &Parser, reader: &mut T) -> Result<TreeNode, String>
+    where T: Reader
+    {
+        self.expr.get(lexer, parser, reader, &self.lambda)
+    }
+
 }
 
 // -=-=-=-=- Unit Tests -=-=-=-=- //

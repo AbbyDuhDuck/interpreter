@@ -4,6 +4,7 @@
 //! 
 
 use crate::lexer::{Lexer, ReadPointer, Reader, Token};
+use crate::exec::syntax::{Lambda, OwnedLambda};
 use super::Parser;
 
 /// Used to define an expression for the [`Parser`] to parse.
@@ -17,15 +18,15 @@ pub enum Expression<'a> {
 
 impl Expression<'_> {
     /// Get the resulting [`TreeNode`] from this expression.
-    pub fn get<T>(&self, lexer: &Lexer, parser: &Parser, reader: &mut T) -> Result<TreeNode, String>
+    pub fn get<T>(&self, lexer: &Lexer, parser: &Parser, reader: &mut T, lambda: &Lambda) -> Result<TreeNode, String>
     where
         T: Reader,
     {
         let result = match self {
-            Expression::ExprOr(expr) => self.get_expr_or(lexer, parser, reader, expr),
-            Expression::SubExpr(expr) => self.get_sub_expr(lexer, parser, reader, expr),
+            Expression::ExprOr(expr) => self.get_expr_or(lexer, parser, reader, expr, lambda),
+            Expression::SubExpr(expr) => self.get_sub_expr(lexer, parser, reader, expr, lambda),
             Expression::Expr(expr) => self.get_expr(lexer, parser, reader, expr),
-            Expression::Token(token, value) => self.get_token(lexer, reader, token, value),
+            Expression::Token(token, value) => self.get_token(lexer, reader, token, value, lambda),
         };
         result
     }
@@ -45,15 +46,25 @@ impl Expression<'_> {
 
     /// Get the resulting [TreeNode] for an [`ExprOr`](Expression::ExprOr) 
     /// using the passed [`Lexer`], [`Parser`], and [`Reader`].
-    fn get_expr_or<T>(&self, lexer: &Lexer, parser: &Parser, reader: &mut T, expr: &&[Expression]) -> Result<TreeNode, String>
+    fn get_expr_or<T>(&self, lexer: &Lexer, parser: &Parser, reader: &mut T, expr: &&[Expression], lambda: &Lambda) -> Result<TreeNode, String>
     where
         T: Reader,
     {
-        for subexpr in expr.iter() {
+        for (i, subexpr) in expr.iter().enumerate() {
+            let sub_lambda = match lambda {
+                Lambda::LambdaOr(lambdas) => match lambdas.get(i) {
+                    Some(lambda) => lambda,
+                    None => return Err(format!("Could not get Lambda for Expression {i} [{}>{}]", expr.len(), lambdas.len()))
+                },
+                _ => lambda,
+            };
+            // println!("{lambda}");
+            // println!("{sub_lambda}");
             reader.push();
-            match subexpr.get(lexer, parser, reader) {
-                Ok(node) => {
+            match subexpr.get(lexer, parser, reader, sub_lambda) {
+                Ok(mut node) => {
                     reader.pop();
+                    // node.set_lambda(sub_lambda);
                     return Ok(node);
                 }
                 Err(_) => {
@@ -67,15 +78,17 @@ impl Expression<'_> {
 
     /// Get the resulting [TreeNode] for a [`SubExpr`](Expression::SubExpr) 
     /// using the passed [`Lexer`], [`Parser`], and [`Reader`].
-    fn get_sub_expr<T>(&self, lexer: &Lexer, parser: &Parser, reader: &mut T, expr: &&[Expression]) -> Result<TreeNode, String>
+    fn get_sub_expr<T>(&self, lexer: &Lexer, parser: &Parser, reader: &mut T, expr: &&[Expression], lambda: &Lambda) -> Result<TreeNode, String>
     where
         T: Reader,
     {
-        Ok(TreeNode::from_nodes(
+        let mut node = TreeNode::from_nodes(
             expr.iter()
-            .map(|subexpr| subexpr.get(lexer, parser, reader))
+            .map(|subexpr| subexpr.get(lexer, parser, reader, &Lambda::Eval))
             .collect::<Result<Vec<TreeNode>, String>>()?
-        ))
+        );
+        node.set_lambda(lambda);
+        Ok(node)
     }
 
     /// Get the resulting [TreeNode] for an [`Expr`](Expression::Expr) 
@@ -84,12 +97,14 @@ impl Expression<'_> {
     where
         T: Reader,
     {
-        parser.get_expr(expr)?.get(lexer, parser, reader)
+        parser
+            .get_expr(expr)?
+            .get(lexer, parser, reader)
     }
 
     /// Get the resulting [TreeNode] for a [`Token`](Expression::Token) 
     /// using the passed [`Lexer`], [`Parser`], and [`Reader`].
-    fn get_token<T>(&self, lexer: &Lexer, reader: &mut T, token: &str, value: &str) -> Result<TreeNode, String>
+    fn get_token<T>(&self, lexer: &Lexer, reader: &mut T, token: &str, value: &str, lambda: &Lambda) -> Result<TreeNode, String>
     where
         T: Reader,
     {
@@ -100,7 +115,9 @@ impl Expression<'_> {
         };
         reader.next(&tok)?;
 
-        Ok(TreeNode::from_token(tok))
+        let mut node = TreeNode::from_token(tok);
+        node.set_lambda(lambda);
+        Ok(node)
     }
 }
 
@@ -108,9 +125,10 @@ impl Expression<'_> {
 /// nodes for other brances or an optional [Token] as a leaf.
 #[derive(Debug)]
 pub struct TreeNode {
-    nodes: Vec<Self>,
-    leaf: Option<Token>,
-    node_type: String,
+    pub nodes: Vec<Self>,
+    pub leaf: Option<Token>,
+    pub node_type: String,
+    pub lambda: OwnedLambda,
 }
 
 /// Implement display so the [`TreeNode`] can be displayed nicely.
@@ -143,12 +161,12 @@ impl TreeNode {
 
     /// Make a leaf node from a [`Token`]
     pub fn from_token(token: Token) -> TreeNode {
-        TreeNode { nodes: vec![], leaf: Some(token), node_type: String::new() }
+        TreeNode { nodes: vec![], leaf: Some(token), node_type: String::new(), lambda: Lambda::EvalToken.into() }
     }
     
     /// Make a branch node from a vector of [TreeNodes](TreeNode).
     pub fn from_nodes(nodes: Vec<TreeNode>) -> TreeNode {
-        TreeNode { nodes, leaf: None, node_type: String::new() }
+        TreeNode { nodes, leaf: None, node_type: String::new(), lambda: Lambda::Eval.into() }
     }
 
     /// Make a symbolic [TreeNode] representation of a static [Expression].
@@ -157,7 +175,7 @@ impl TreeNode {
     /// 
     /// You cannot use [`Expr`](Expression::Expr) in a static representation as
     /// there is no [`Parser`] to reference.
-    pub fn from_expr<'a>(expr: &Expression<'a>) -> TreeNode {
+    pub fn from_expr(expr: &Expression) -> TreeNode {
         match expr {
             Expression::ExprOr(nodes) | Expression::SubExpr(nodes) => {
                 let nodes = nodes.into_iter().map(TreeNode::from_expr).collect();
@@ -187,13 +205,17 @@ impl TreeNode {
     pub fn set_leaf(&mut self, token: Token) {
         self.leaf = Some(token);
     }
+
+    pub fn set_lambda(&mut self, lambda: &Lambda) {
+        self.lambda = lambda.into();
+    }
 }
 
 
 /// Hold a root [TreeNode] and methods for traversing it.
 #[derive(Debug)]
 pub struct AbstractSyntaxTree {
-    root: TreeNode,
+    pub root: TreeNode,
 }
 
 /// Implement the Display for the [AbstractSyntaxTree].

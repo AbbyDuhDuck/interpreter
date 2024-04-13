@@ -2,7 +2,7 @@
 
 use std::ops::{Add, Div, Mul, Sub};
 
-use crate::{lexer::Token, parser::syntax::{AbstractSyntaxTree, TreeNode}};
+use crate::parser::syntax::{AbstractSyntaxTree, TreeNode};
 
 use super::syntax::Lambda;
 
@@ -24,6 +24,9 @@ impl VirtualEnv {
 
     pub fn exec(&self, ast: AbstractSyntaxTree) -> StateNode {
         println!("exec: {ast}");
+        println!("lambda: {}", ast.root.lambda);
+        // println!("nodes: {:}", ast.root.nodes[0]);
+        // println!("lambda: {:#?}", ast.root.nodes[0].lambda);
         StateNode::None
     }
 
