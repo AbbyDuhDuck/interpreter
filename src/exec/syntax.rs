@@ -54,7 +54,7 @@ impl<'a> Into<OwnedLambda> for Lambda<'a> {
 }
 
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum OwnedLambda {
     LambdaOr(Vec<OwnedLambda>),
     Lambda(String, Vec<u32>),

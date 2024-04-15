@@ -123,7 +123,7 @@ impl Expression<'_> {
 
 /// A branch node on an [Abstract Syntax Tree](AbstractSyntaxTree), it can contain other
 /// nodes for other brances or an optional [Token] as a leaf.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TreeNode {
     pub nodes: Vec<Self>,
     pub leaf: Option<Token>,
