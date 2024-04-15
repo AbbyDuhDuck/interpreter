@@ -152,16 +152,30 @@ impl Div for StateNode {
 
 #[derive(Debug, Clone)]
 pub enum NodeValue {
+    // Types
     BigInteger(i128),
     Integer(i32),
     BigFloat(f64),
     Float(f32),
     String(String),
-
+    // Errors
     ValueError(String),
 }
 
 impl NodeValue {
+
+    pub fn to_string(&self) -> Result<String, String> {
+        match self {
+            Self::BigFloat(float) => Ok(float.to_string()),
+            Self::Float(float) => Ok(float.to_string()),
+            Self::BigInteger(int) => Ok(int.to_string()),
+            Self::Integer(int) => Ok(int.to_string()),
+            Self::String(string) => Ok(string.into()),
+
+            Self::ValueError(err) => Err(err.into()),
+        }
+    }
+
     fn parse_value<T>(value: &str) -> Result<Self, String>
     where
         T: FromStr + NodeTypeTrait,
@@ -187,6 +201,20 @@ impl NodeValue {
             NodeType::String => Ok(NodeValue::String(value.to_string())),
         }
     }
+
+    fn as_type<T>(&self) -> NodeValue
+    where
+        T: FromStr + NodeTypeTrait,
+        <T as FromStr>::Err: std::fmt::Debug,
+    {
+        match Self::parse_value::<T>(&match self.to_string() {
+            Ok(val) => val,
+            Err(err) => return Self::ValueError(err),
+        }) {
+            Ok(val) => val,
+            Err(err) => Self::ValueError(err)
+        }
+    }
 }
 
 impl Add for NodeValue {
@@ -194,7 +222,22 @@ impl Add for NodeValue {
 
     fn add(self, other: Self) -> Self::Output {
         println!("{self:?} + {other:?}");
-        Self::ValueError("Cannot add Node Values - unimplemented".into())
+
+        match (&self, &other) {
+            // TODO: check for value error here...
+
+            (Self::BigFloat(f1), Self::BigFloat(f2)) => Self::BigFloat(f1 + f2),
+            (Self::Float(f1), Self::Float(f2)) => Self::Float(f1 + f2),
+            (Self::BigInteger(i1), Self::BigInteger(i2)) => Self::BigInteger(i1 + i2),
+            (Self::Integer(i1), Self::Integer(i2)) => Self::Integer(i1 + i2),
+
+            (Self::BigFloat(_), _) => self + other.as_type::<f64>(),
+            (Self::Float(_), _) => self + other.as_type::<f32>(),
+            (Self::BigInteger(_), _) => self + other.as_type::<i128>(),
+            (Self::Integer(_), _) => self + other.as_type::<i32>(),
+
+            (lhs, rhs) => Self::ValueError(format!("Cannot add {lhs:?} to {rhs:?}."))
+        }
     }
 }
 impl Sub for NodeValue {
