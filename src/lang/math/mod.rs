@@ -97,7 +97,7 @@ pub mod math {
             frame.eval_as::<f32>()
         });
         env.define("GET_IDENT", |frame, | {
-            RuntimeErr("tthign".into())
+            RuntimeErr("Variables aren't implemented yet.".into())
         });
         env
     });
