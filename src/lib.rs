@@ -59,14 +59,14 @@ pub fn exec(expr_str: &str) -> Result<String, String>{
     // _lexer.define("str", "[a-zA-Z_]+")?;
 
     // match by token type
-    if let Some(tok) = _lexer.get_next_token("num", &reader) {
-        println!("Hey you found the number: {}", tok.value);
-    }
+    // if let Some(tok) = _lexer.get_next_token("num", &reader) {
+    //     println!("Hey you found the number: {}", tok.value);
+    // }
 
     // match any
-    if let Some(tok) = _lexer.get_next_any(&reader) {
-        println!("Found: {tok:?}");
-    };
+    // if let Some(tok) = _lexer.get_next_any(&reader) {
+    //     println!("Found: {tok:?}");
+    // };
 
     // -=- parser (ast builder) -=- //
     let parser = math::PARSER;
