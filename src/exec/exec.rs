@@ -11,12 +11,6 @@ use crate::exec::syntax::OwnedLambda;
 use super::syntax::Lambda;
 
 
-
-pub enum Value<T> {
-    Value(T),
-    None,
-}
-
 pub struct VirtualEnv {
     definitions: HashMap<String, fn(EnvFrame) -> StateNode>,
 }
