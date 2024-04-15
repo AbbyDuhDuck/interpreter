@@ -49,7 +49,7 @@ impl VirtualEnv {
         
     }
     
-    fn lambda<'a>(&self, name: &str, node: &'a TreeNode, args: &'a [u32]) -> StateNode {
+    fn lambda(&self, name: &str, node: &TreeNode, args: &[u32]) -> StateNode {
         let lambda = match self.definitions.get(name) {
             Some(lambda) => lambda,
             None => return StateNode::RuntimeErr(format!("No lambda found for `{}`", name)),
@@ -57,7 +57,7 @@ impl VirtualEnv {
         lambda(EnvFrame::build_frame(self, node, args))
     }
 
-    pub fn define<'a>(&mut self, lambda_type: &str, cb: for<'b> fn(EnvFrame<'b>) -> StateNode) {
+    pub fn define(&mut self, lambda_type: &str, cb: fn(EnvFrame) -> StateNode) {
         self.definitions.insert(lambda_type.into(), cb);
     }
 }
@@ -78,7 +78,7 @@ impl Exec {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum StateNode {
     None,
     Node(TreeNode),
@@ -90,45 +90,81 @@ impl StateNode {
     pub fn new(node: TreeNode) -> StateNode {
         Self::Node(node)
     }
+
+    pub fn as_value(self) -> StateNode {
+        match self {
+            Self::Node(node) => {
+                Self::RuntimeErr("Cannot convert Node to Value".into())
+            },
+            _ => self
+        }
+    }
+
+    pub fn as_node_value(self) -> NodeValue {
+        match self {
+            Self::RuntimeErr(_) => unreachable!(), // should not be trying to convert an error
+            Self::Value(val) => val,
+            _ => NodeValue::ValueError(format!("Cannot convert `{self:?}` to NodeValue")),
+        }
+        // NodeValue::ValueError(format!("Cannot convert `{self:?}` to NodeValue"))
+    }
+
+    fn operator(lhs: StateNode, rhs: StateNode, op: fn(a: NodeValue, b: NodeValue) -> NodeValue) -> StateNode {
+        println!("OPERATOR\nLHS: {lhs:?}\nRHS: {rhs:?}");
+        if let Self::RuntimeErr(_) = lhs { return lhs; }
+        if let Self::RuntimeErr(_) = rhs { return rhs; }
+        // -=-=- //
+        match (lhs.as_node_value(), rhs.as_node_value()) {
+            (NodeValue::ValueError(err), _) |(_, NodeValue::ValueError(err)) => StateNode::RuntimeErr(err),
+            (lhv, rhv) => match op(lhv, rhv) {
+                NodeValue::ValueError(err) => Self::RuntimeErr(err),
+                val => Self::Value(val),
+            }
+            _ => unreachable!(), // Should not happen if as_node_value is implemented correctly
+        }
+    }
 }
 
 impl Add for StateNode {
     type Output = Self;
 
-    fn add(self, rhs: Self) -> Self::Output {
-        todo!()
+    fn add(self, other: Self) -> Self::Output {
+        Self::operator(self, other, |lhs, rhs| lhs + rhs )
     }
 }
 impl Sub for StateNode {
     type Output = Self;
 
-    fn sub(self, rhs: Self) -> Self::Output {
-        todo!()
+    fn sub(self, other: Self) -> Self::Output {
+        println!("{self:?} - {other:?}");
+        Self::operator(self, other, |lhs, rhs| lhs - rhs )
     }
 }
 impl Mul for StateNode {
     type Output = Self;
 
-    fn mul(self, rhs: Self) -> Self::Output {
-        todo!()
+    fn mul(self, other: Self) -> Self::Output {
+        Self::operator(self, other, |lhs, rhs| lhs * rhs )
     }
 }
 impl Div for StateNode {
     type Output = Self;
 
-    fn div(self, rhs: Self) -> Self::Output {
-        todo!()
+    fn div(self, other: Self) -> Self::Output {
+        Self::operator(self, other, |lhs, rhs| lhs / rhs )
     }
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NodeValue {
     BigInteger(i128),
     Integer(i32),
     BigFloat(f64),
     Float(f32),
     String(String),
+
+    ValueError(String),
 }
 
 impl NodeValue {
@@ -158,6 +194,40 @@ impl NodeValue {
         }
     }
 }
+
+impl Add for NodeValue {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        println!("{self:?} + {other:?}");
+        Self::ValueError("Cannot add Node Values - unimplemented".into())
+    }
+}
+impl Sub for NodeValue {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self::Output {
+        println!("{self:?} - {other:?}");
+        Self::ValueError("Cannot sub Node Values - unimplemented".into())
+    }
+}
+impl Mul for NodeValue {
+    type Output = Self;
+
+    fn mul(self, other: Self) -> Self::Output {
+        println!("{self:?} * {other:?}");
+        Self::ValueError("Cannot mul Node Values - unimplemented".into())
+    }
+}
+impl Div for NodeValue {
+    type Output = Self;
+
+    fn div(self, other: Self) -> Self::Output {
+        println!("{self:?} / {other:?}");
+        Self::ValueError("Cannot div Node Values - unimplemented".into())
+    }
+}
+
 
 #[derive(Debug)]
 pub enum NodeType {
@@ -202,7 +272,22 @@ impl EnvFrame<'_> {
     }
     
     pub fn eval(&self) -> Exec {
-        Exec::RuntimeErr("EVAL Not Imp[lemsdkjfsdkj".into())
+        match self.args.len() {
+            1 => Exec::UniOp(self.eval_branch(0)),
+            2 => Exec::BinOp(self.eval_branch(0), self.eval_branch(1)),
+            // 3 => Exec::TriOp(),
+            _ => Exec::Root(StateNode::Node(self.node.clone())),
+        }
+        // Exec::RuntimeErr("EVAL Not Imp[lemsdkjfsdkj".into())
+    }
+
+    fn eval_branch(&self, branch: usize) -> StateNode {
+        let node = &self.node.nodes[self.args[branch] as usize - 1];
+        self.eval_node(node)
+    }
+
+    fn eval_node(&self, node: &TreeNode) -> StateNode {
+        self.env.eval(node)
     }
     
     pub fn eval_as<T>(&self) -> StateNode
