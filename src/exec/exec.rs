@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::ops::{Add, Div, Mul, Sub};
 use std::str::FromStr;
-use std::u32;
+use std::{error, u32};
 
 use crate::parser::syntax::{AbstractSyntaxTree, TreeNode};
 use crate::exec::syntax::OwnedLambda;
@@ -153,10 +153,10 @@ impl Div for StateNode {
 #[derive(Debug, Clone)]
 pub enum NodeValue {
     // Types
-    BigInteger(i128),
-    Integer(i32),
     BigFloat(f64),
     Float(f32),
+    BigInteger(i128),
+    Integer(i32),
     String(String),
     // Errors
     ValueError(String),
@@ -185,19 +185,19 @@ impl NodeValue {
             NodeType::Integer => value
                 .parse::<i32>()
                 .map(NodeValue::Integer)
-                .map_err(|e| format!("Failed to parse '{}' as Integer: {:?}", value, e)),
+                .map_err(|_| format!("Failed to parse '{value}' as Integer")),
             NodeType::BigInteger => value
                 .parse::<i128>()
                 .map(NodeValue::BigInteger)
-                .map_err(|e| format!("Failed to parse '{}' as Integer: {:?}", value, e)),
+                .map_err(|_| format!("Failed to parse '{value}' as Integer")),
             NodeType::Float => value
                 .parse::<f32>()
                 .map(NodeValue::Float)
-                .map_err(|e| format!("Failed to parse '{}' as Float: {:?}", value, e)),
+                .map_err(|_| format!("Failed to parse '{value}' as Float")),
             NodeType::BigFloat => value
                 .parse::<f64>()
                 .map(NodeValue::BigFloat)
-                .map_err(|e| format!("Failed to parse '{}' as Float: {:?}", value, e)),
+                .map_err(|_| format!("Failed to parse '{value}' as Float")),
             NodeType::String => Ok(NodeValue::String(value.to_string())),
         }
     }
@@ -223,18 +223,20 @@ impl Add for NodeValue {
     fn add(self, other: Self) -> Self::Output {
         println!("{self:?} + {other:?}");
 
+        // TODO: obfuscate out this to multiple functions somehow...
         match (&self, &other) {
-            // TODO: check for value error here...
+            (Self::ValueError(err), _) |
+            (_, Self::ValueError(err)) => Self::ValueError(err.into()),
 
             (Self::BigFloat(f1), Self::BigFloat(f2)) => Self::BigFloat(f1 + f2),
             (Self::Float(f1), Self::Float(f2)) => Self::Float(f1 + f2),
             (Self::BigInteger(i1), Self::BigInteger(i2)) => Self::BigInteger(i1 + i2),
             (Self::Integer(i1), Self::Integer(i2)) => Self::Integer(i1 + i2),
 
-            (Self::BigFloat(_), _) => self + other.as_type::<f64>(),
-            (Self::Float(_), _) => self + other.as_type::<f32>(),
-            (Self::BigInteger(_), _) => self + other.as_type::<i128>(),
-            (Self::Integer(_), _) => self + other.as_type::<i32>(),
+            (Self::BigFloat(_), _) | (_, Self::BigFloat(_)) => self.as_type::<f64>() + other.as_type::<f64>(),
+            (Self::Float(_), _) | (_, Self::Float(_)) => self.as_type::<f32>() + other.as_type::<f32>(),
+            (Self::BigInteger(_), _) | (_, Self::BigInteger(_)) => self.as_type::<i128>() + other.as_type::<i128>(),
+            (Self::Integer(_), _) | (_, Self::Integer(_)) => self.as_type::<i32>() + other.as_type::<i32>(),
 
             (lhs, rhs) => Self::ValueError(format!("Cannot add {lhs:?} to {rhs:?}."))
         }
@@ -245,7 +247,24 @@ impl Sub for NodeValue {
 
     fn sub(self, other: Self) -> Self::Output {
         println!("{self:?} - {other:?}");
-        Self::ValueError("Cannot sub Node Values - unimplemented".into())
+        
+        // TODO: obfuscate out this to multiple functions somehow...
+        match (&self, &other) {
+            (Self::ValueError(err), _) |
+            (_, Self::ValueError(err)) => Self::ValueError(err.into()),
+
+            (Self::BigFloat(f1), Self::BigFloat(f2)) => Self::BigFloat(f1 - f2),
+            (Self::Float(f1), Self::Float(f2)) => Self::Float(f1 - f2),
+            (Self::BigInteger(i1), Self::BigInteger(i2)) => Self::BigInteger(i1 - i2),
+            (Self::Integer(i1), Self::Integer(i2)) => Self::Integer(i1 - i2),
+
+            (Self::BigFloat(_), _) | (_, Self::BigFloat(_)) => self.as_type::<f64>() - other.as_type::<f64>(),
+            (Self::Float(_), _) | (_, Self::Float(_)) => self.as_type::<f32>() - other.as_type::<f32>(),
+            (Self::BigInteger(_), _) | (_, Self::BigInteger(_)) => self.as_type::<i128>() - other.as_type::<i128>(),
+            (Self::Integer(_), _) | (_, Self::Integer(_)) => self.as_type::<i32>() - other.as_type::<i32>(),
+
+            (lhs, rhs) => Self::ValueError(format!("Cannot add {lhs:?} to {rhs:?}."))
+        }
     }
 }
 impl Mul for NodeValue {
@@ -253,7 +272,24 @@ impl Mul for NodeValue {
 
     fn mul(self, other: Self) -> Self::Output {
         println!("{self:?} * {other:?}");
-        Self::ValueError("Cannot mul Node Values - unimplemented".into())
+
+        // TODO: obfuscate out this to multiple functions somehow...
+        match (&self, &other) {
+            (Self::ValueError(err), _) |
+            (_, Self::ValueError(err)) => Self::ValueError(err.into()),
+
+            (Self::BigFloat(f1), Self::BigFloat(f2)) => Self::BigFloat(f1 * f2),
+            (Self::Float(f1), Self::Float(f2)) => Self::Float(f1 * f2),
+            (Self::BigInteger(i1), Self::BigInteger(i2)) => Self::BigInteger(i1 * i2),
+            (Self::Integer(i1), Self::Integer(i2)) => Self::Integer(i1 * i2),
+
+            (Self::BigFloat(_), _) | (_, Self::BigFloat(_)) => self.as_type::<f64>() * other.as_type::<f64>(),
+            (Self::Float(_), _) | (_, Self::Float(_)) => self.as_type::<f32>() * other.as_type::<f32>(),
+            (Self::BigInteger(_), _) | (_, Self::BigInteger(_)) => self.as_type::<i128>() * other.as_type::<i128>(),
+            (Self::Integer(_), _) | (_, Self::Integer(_)) => self.as_type::<i32>() * other.as_type::<i32>(),
+
+            (lhs, rhs) => Self::ValueError(format!("Cannot add {lhs:?} to {rhs:?}."))
+        }
     }
 }
 impl Div for NodeValue {
@@ -261,7 +297,24 @@ impl Div for NodeValue {
 
     fn div(self, other: Self) -> Self::Output {
         println!("{self:?} / {other:?}");
-        Self::ValueError("Cannot div Node Values - unimplemented".into())
+        
+        // TODO: obfuscate out this to multiple functions somehow...
+        match (&self, &other) {
+            (Self::ValueError(err), _) |
+            (_, Self::ValueError(err)) => Self::ValueError(err.into()),
+
+            (Self::BigFloat(f1), Self::BigFloat(f2)) => Self::BigFloat(f1 / f2),
+            (Self::Float(f1), Self::Float(f2)) => Self::Float(f1 / f2),
+            (Self::BigInteger(i1), Self::BigInteger(i2)) => Self::BigInteger(i1 / i2),
+            (Self::Integer(i1), Self::Integer(i2)) => Self::Integer(i1 / i2),
+
+            (Self::BigFloat(_), _) | (_, Self::BigFloat(_)) => self.as_type::<f64>() / other.as_type::<f64>(),
+            (Self::Float(_), _) | (_, Self::Float(_)) => self.as_type::<f32>() / other.as_type::<f32>(),
+            (Self::BigInteger(_), _) | (_, Self::BigInteger(_)) => self.as_type::<i128>() / other.as_type::<i128>(),
+            (Self::Integer(_), _) | (_, Self::Integer(_)) => self.as_type::<i32>() / other.as_type::<i32>(),
+
+            (lhs, rhs) => Self::ValueError(format!("Cannot add {lhs:?} to {rhs:?}."))
+        }
     }
 }
 
