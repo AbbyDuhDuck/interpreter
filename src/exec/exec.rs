@@ -25,22 +25,38 @@ impl VirtualEnv {
         // println!("lambda: {}", ast.root.lambda);
         // println!("nodes: {:}", ast.root.nodes[0]);
         // println!("lambda: {:#?}", ast.root.nodes[0].lambda);
-        self.eval(&ast.root)
+        self.eval_node(&ast.root)
     }
 
-    fn eval(&self, node: &TreeNode) -> StateNode {
+    fn eval_node(&self, node: &TreeNode) -> StateNode {
         let lambda = &node.lambda;
         println!("EVAL: {node} {lambda}");
         println!("{lambda:?}");
 
+        self.eval_lambda(node, lambda)
+    }
+
+    fn eval_lambda(&self, node: &TreeNode, lambda: &OwnedLambda) -> StateNode {
         use OwnedLambda::*;
         match lambda {
+            Eval => self.eval(node),
             Lambda(name, args) => self.lambda(name, node, args),
             EvalAs(name) => self.lambda(name, node, &[]),
+            GetExpr(arg, sublambda) => match node.nodes.get(*arg as usize - 1) {
+                Some(subnode) => self.eval_lambda(subnode, sublambda),
+                None => StateNode::RuntimeErr(format!("No node found for index {arg} on node `{node}`")),
+            }
             _ => StateNode::RuntimeErr(format!("No lambda eval found for `{lambda:?}`")),
         }
 
         
+    }
+
+    fn eval(&self, node: &TreeNode) -> StateNode {
+        if let OwnedLambda::Eval = &node.lambda {
+            return StateNode::RuntimeErr(format!("Recursion Error: Cannot EVAL on node with EVAL lambda `{node}`"));
+        }
+        self.eval_node(node)
     }
     
     fn lambda(&self, name: &str, node: &TreeNode, args: &[u32]) -> StateNode {
@@ -297,22 +313,42 @@ impl Div for NodeValue {
 
     fn div(self, other: Self) -> Self::Output {
         println!("{self:?} / {other:?}");
+
+        if let Some(_) = match other {
+            Self::BigFloat(float) if float == 0.0 => Some(()),
+            Self::Float(float) if float == 0.0 => Some(()),
+            Self::BigInteger(int) if int == 0 => Some(()),
+            Self::Integer(int) if int == 0 => Some(()),
+            _ => None,
+        }{
+            return Self::ValueError("Cannot divide by zero".into())
+        };
         
         // TODO: obfuscate out this to multiple functions somehow...
         match (&self, &other) {
+            // error check
             (Self::ValueError(err), _) |
             (_, Self::ValueError(err)) => Self::ValueError(err.into()),
 
+            // division
             (Self::BigFloat(f1), Self::BigFloat(f2)) => Self::BigFloat(f1 / f2),
             (Self::Float(f1), Self::Float(f2)) => Self::Float(f1 / f2),
-            (Self::BigInteger(i1), Self::BigInteger(i2)) => Self::BigInteger(i1 / i2),
-            (Self::Integer(i1), Self::Integer(i2)) => Self::Integer(i1 / i2),
+            (Self::BigInteger(i1), Self::BigInteger(i2)) => {
+                if i1 % i2 != 0 { return Self::BigFloat(*i1 as f64 / *i2 as f64); }
+                Self::BigInteger(i1 / i2)
+            },
+            (Self::Integer(i1), Self::Integer(i2)) => {
+                if i1 % i2 != 0 { return Self::Float(*i1 as f32 / *i2 as f32); }
+                Self::Integer(i1 / i2)
+            }
 
+            // conversion
             (Self::BigFloat(_), _) | (_, Self::BigFloat(_)) => self.as_type::<f64>() / other.as_type::<f64>(),
             (Self::Float(_), _) | (_, Self::Float(_)) => self.as_type::<f32>() / other.as_type::<f32>(),
             (Self::BigInteger(_), _) | (_, Self::BigInteger(_)) => self.as_type::<i128>() / other.as_type::<i128>(),
             (Self::Integer(_), _) | (_, Self::Integer(_)) => self.as_type::<i32>() / other.as_type::<i32>(),
 
+            // value error
             (lhs, rhs) => Self::ValueError(format!("Cannot add {lhs:?} to {rhs:?}."))
         }
     }
@@ -377,7 +413,7 @@ impl EnvFrame<'_> {
     }
 
     fn eval_node(&self, node: &TreeNode) -> StateNode {
-        self.env.eval(node)
+        self.env.eval_node(node)
     }
     
     pub fn eval_as<T>(&self) -> StateNode
