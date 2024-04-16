@@ -27,7 +27,7 @@ impl std::fmt::Display for Lambda<'_> {
                 write!(f, "{lambda} ")?;
                 write!(f, "{} ", args.iter().map(|arg| format!("${arg}")).collect::<Vec<String>>().join(" "))
             }, 
-            Lambda::GetExpr(arg, lambda) => write!(f, "for &{arg} {{ {lambda} }}"),
+            Lambda::GetExpr(arg, lambda) => write!(f, "with &{arg} {lambda} "),
             Lambda::Eval => write!(f, "EVAL "),
             Lambda::EvalAs(lambda) => write!(f, "{lambda} "), 
             Lambda::EvalToken => write!(f, "EVAL_TOKEN "),
@@ -81,7 +81,7 @@ impl std::fmt::Display for OwnedLambda {
                 write!(f, "{lambda} ")?;
                 write!(f, "{} ", args.iter().map(|arg| format!("${arg}")).collect::<Vec<String>>().join(" "))
             }, 
-            OwnedLambda::GetExpr(arg, lambda) => write!(f, "for &{arg} {{ {lambda} }}"),
+            OwnedLambda::GetExpr(arg, lambda) => write!(f, "with &{arg} {lambda} "),
             OwnedLambda::Eval => write!(f, "EVAL "),
             OwnedLambda::EvalAs(lambda) => write!(f, "{lambda} "), 
             OwnedLambda::EvalToken => write!(f, "EVAL_TOKEN "),
