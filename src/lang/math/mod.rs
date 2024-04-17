@@ -33,14 +33,19 @@ pub mod math {
         ]));
         let _ = parser.define("TERM", ExprOr(&[
             SubExpr(&[ Expr("FACTOR"), Token("op", "*"), Expr("TERM") ]),
-            SubExpr(&[ Expr("FACTOR"), Token("op", "/"), Expr("TERM") ]),
             Expr("FACTOR"),
         ]), LambdaOr(&[
             Lambda("MULT", &[1, 3]),
-            Lambda("DIV", &[1, 3]),
             Eval,
         ]));
         let _ = parser.define("FACTOR", ExprOr(&[
+            SubExpr(&[ Expr("VALUE"), Token("op", "/"), Expr("FACTOR") ]),
+            Expr("VALUE"),
+        ]), LambdaOr(&[
+            Lambda("DIV", &[1, 3]),
+            Eval,
+        ]));
+        let _ = parser.define("VALUE", ExprOr(&[
             SubExpr(&[ Token("op", "("), Expr("MATH:EXPR"), Token("op", ")")]),
             Expr("NUM"),
             Expr("VAR"),
