@@ -2,6 +2,8 @@
 //! 
 //! Something something, basic interpreter in rust. 
 
+use std::ops::Deref;
+
 use crate::{exec::StateNode, parser::syntax::TreeNode};
 
 mod macros;
@@ -17,6 +19,8 @@ pub mod lang;
 /// 
 /// it can be started with `interpreter::run()` or by running the interpreter executable.
 pub fn run() {
+    let mut executor: exec::Executor = exec::Executor::math();
+
     use macros::io::*;
     loop {
         // spacer
@@ -28,7 +32,8 @@ pub fn run() {
             break;
         }
         // exec the input
-        let result = match exec(input) {
+        let mut reader = lexer::LineReader::new(input);
+        let result = match executor.exec(&mut reader) {
             Ok(val) => val,
             Err(err) => {
                 // this is where you can check for ErrorEOF
@@ -49,13 +54,15 @@ pub fn run() {
 /// produce an Abstract Syntax Tree - finally the Interpreter will traverse the AST and
 /// run your code - producing a Result.
 pub fn exec(expr_str: &str) -> Result<String, String>{
-    use lang::math;
+    unimplemented!()
+    // use lang::math;
 
     // -=- line reader -=- //
-    let mut reader = lexer::LineReader::new(expr_str);
+    
+
+    
 
     // -=- lexer (tokenizer) -=- //
-    let _lexer = math::LEXER;
 
     // let mut _lexer = lexer::Lexer::new(); // typically you would make this only once.
     // _lexer.define("num", "[0-9]+")?;
@@ -72,25 +79,24 @@ pub fn exec(expr_str: &str) -> Result<String, String>{
     // };
 
     // -=- parser (ast builder) -=- //
-    let parser = math::PARSER;
 
     // let mut parser = parser::Parser::new(); // typically you would make this only once.
     // parser.define("expr", parser::RuleType::Token("num")); // TODO
 
-    let ast = parser.parse_tree(&_lexer, &mut reader)?;
+    // let ast = PARSER.parse_tree(&LEXER, &mut reader)?;
     // println!("AST:\n{ast:}");
 
     // -=- interpreter -=- //
-    let env = math::ENV;
-    let result = env.exec(ast);
+    // ENV.set_ident("thing", exec::NodeValue::Integer(-1));
+    // let result = ENV.exec(ast);
 
-    match result {
-        StateNode::None => Ok("None".into()),
-        StateNode::Value(val) => Ok(val.to_string().unwrap_or_default()),
+    // match result {
+    //     StateNode::None => Ok("None".into()),
+    //     StateNode::Value(val) => Ok(val.to_string().unwrap_or_default()),
         
-        StateNode::RuntimeErr(err) => Err(err),
-        StateNode::Node(node) => Err(format!("Node Result: {node}")),
-    }
+    //     StateNode::RuntimeErr(err) => Err(err),
+    //     StateNode::Node(node) => Err(format!("Node Result: {node}")),
+    // }
     // println!("Result: {result:?}");
 
     // just ping back the input for now
