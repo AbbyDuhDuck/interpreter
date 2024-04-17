@@ -5,6 +5,7 @@ use std::ops::{Add, Div, Mul, Sub};
 use std::str::FromStr;
 use std::{error, u32};
 
+use crate::lexer::Token;
 use crate::parser::syntax::{AbstractSyntaxTree, TreeNode};
 use crate::exec::syntax::OwnedLambda;
 
@@ -13,19 +14,31 @@ use super::syntax::Lambda;
 
 pub struct VirtualEnv {
     definitions: HashMap<String, fn(EnvFrame) -> StateNode>,
+    pub variables: HashMap<String, NodeValue>, // Change the key type to String
 }
 
 impl VirtualEnv {
     pub fn new() -> VirtualEnv {
-        VirtualEnv { definitions: HashMap::new() }
+        VirtualEnv { definitions: HashMap::new(), variables: HashMap::new() }
     }
 
-    pub fn exec(&self, ast: AbstractSyntaxTree) -> StateNode {
+    pub fn set_ident(&mut self, ident: &str, value: NodeValue) {
+        self.variables.insert(ident.to_owned(), value);
+    }
+    
+    pub fn get_ident(&self, ident: &str) -> NodeValue {
+        match self.variables.get(ident) {
+            Some(val) => val.clone(),
+            None => NodeValue::ValueError(format!("Could Not find variable `{}`", ident)), // Use `ident` instead of `{ident}`
+        }
+    }
+
+    pub fn exec(&mut self, ast: AbstractSyntaxTree) -> StateNode {
         // println!("exec: {ast}");
         self.eval_node(&ast.root)
     }
 
-    fn eval_node(&self, node: &TreeNode) -> StateNode {
+    fn eval_node(&mut self, node: &TreeNode) -> StateNode {
         let lambda = &node.lambda;
         // println!("EVAL: {node} {lambda}");
         // println!("{lambda:?}");
@@ -33,10 +46,11 @@ impl VirtualEnv {
         self.eval_lambda(node, lambda)
     }
 
-    fn eval_lambda(&self, node: &TreeNode, lambda: &OwnedLambda) -> StateNode {
+    fn eval_lambda(&mut self, node: &TreeNode, lambda: &OwnedLambda) -> StateNode {
         use OwnedLambda::*;
         match lambda {
             Eval => self.eval(node),
+            EvalToken => self.eval_token(node),
             Lambda(name, args) => self.lambda(name, node, args),
             EvalAs(name) => self.lambda(name, node, &[]),
             GetExpr(arg, sublambda) => match node.nodes.get(*arg as usize - 1) {
@@ -49,14 +63,19 @@ impl VirtualEnv {
         
     }
 
-    fn eval(&self, node: &TreeNode) -> StateNode {
+    fn eval(&mut self, node: &TreeNode) -> StateNode {
         if let OwnedLambda::Eval = &node.lambda {
             return StateNode::RuntimeErr(format!("Recursion Error: Cannot EVAL on node with EVAL lambda `{node}`"));
         }
         self.eval_node(node)
     }
+
+    fn eval_token(&mut self, node: &TreeNode) -> StateNode {
+        // println!("EVAL TOKEN: {node}");
+        EnvFrame::build_frame(self, node, &[]).eval_token()
+    }
     
-    fn lambda(&self, name: &str, node: &TreeNode, args: &[u32]) -> StateNode {
+    fn lambda(&mut self, name: &str, node: &TreeNode, args: &[u32]) -> StateNode {
         let lambda = match self.definitions.get(name) {
             Some(lambda) => lambda,
             None => return StateNode::RuntimeErr(format!("No lambda found for `{}`", name)),
@@ -70,11 +89,12 @@ impl VirtualEnv {
 }
 
 
+#[derive(Debug)]
 pub enum Exec {
     NoOp(),
-    UniOp( StateNode ),
-    BinOp( StateNode, StateNode ),
-    TriOp( StateNode, StateNode, StateNode ),
+    UniExpr( StateNode ),
+    BinExpr( StateNode, StateNode ),
+    TriExpr( StateNode, StateNode, StateNode ),
     Root( StateNode ),
     RuntimeErr(String)
 }
@@ -104,6 +124,18 @@ impl StateNode {
                 Self::RuntimeErr("Cannot convert Node to Value".into())
             },
             _ => self
+        }
+    }
+
+    pub fn as_ident(&self) -> NodeValue {
+        match self {
+            Self::Value(value) => match value {
+                NodeValue::Ident(ident) => NodeValue::Ident(ident.to_string()),
+                NodeValue::Token(token) => NodeValue::Ident(token.value.clone()),
+                NodeValue::String(string) => NodeValue::Ident(string.into()),
+                _ => NodeValue::ValueError(format!("Cannot convert `{value:?}` to Identifier"))
+            },
+            _ => NodeValue::ValueError(format!("Cannot convert `{self:?}` to Identifier")),
         }
     }
 
@@ -164,6 +196,9 @@ impl Div for StateNode {
 
 #[derive(Debug, Clone)]
 pub enum NodeValue {
+    // Hidden Types
+    Token(Token),
+    Ident(String),
     // Types
     BigFloat(f64),
     Float(f32),
@@ -178,6 +213,9 @@ impl NodeValue {
 
     pub fn to_string(&self) -> Result<String, String> {
         match self {
+            Self::Token(token) => Ok(token.to_string()),
+            Self::Ident(ident) => Ok(ident.to_string()),
+
             Self::BigFloat(float) => Ok(float.to_string()),
             Self::Float(float) => Ok(float.to_string()),
             Self::BigInteger(int) => Ok(int.to_string()),
@@ -383,32 +421,39 @@ impl NodeTypeTrait for str {
 }
 
 pub struct EnvFrame<'a> {
-    env: &'a VirtualEnv,
+    env: &'a mut VirtualEnv,
     node: &'a TreeNode,
     args: &'a [u32],
 }
 
 impl EnvFrame<'_> {
-    pub fn build_frame<'a>(env: &'a VirtualEnv, node: &'a TreeNode, args: &'a [u32]) -> EnvFrame<'a> {
+    pub fn build_frame<'a>(env: &'a mut VirtualEnv, node: &'a TreeNode, args: &'a [u32]) -> EnvFrame<'a> {
         EnvFrame { env, node, args }
     }
     
-    pub fn eval(&self) -> Exec {
+    pub fn eval(&mut self) -> Exec {
         match self.args.len() {
-            1 => Exec::UniOp(self.eval_branch(0)),
-            2 => Exec::BinOp(self.eval_branch(0), self.eval_branch(1)),
+            1 => Exec::UniExpr(self.eval_branch(0)),
+            2 => Exec::BinExpr(self.eval_branch(0), self.eval_branch(1)),
             // 3 => Exec::TriOp(),
             _ => Exec::Root(StateNode::Node(self.node.clone())),
         }
         // Exec::RuntimeErr("EVAL Not Imp[lemsdkjfsdkj".into())
     }
 
-    fn eval_branch(&self, branch: usize) -> StateNode {
+    fn eval_branch(&mut self, branch: usize) -> StateNode {
         let node = &self.node.nodes[self.args[branch] as usize - 1];
         self.eval_node(node)
     }
 
-    fn eval_node(&self, node: &TreeNode) -> StateNode {
+    fn eval_token(&self) -> StateNode {
+        match &self.node.leaf {
+            Some(token) => StateNode::Value(NodeValue::Token(token.clone())),
+            None => StateNode::RuntimeErr(format!("Cannot EVAL TOKEN for `{}`", self.node)),
+        }
+    }
+
+    fn eval_node(&mut self, node: &TreeNode) -> StateNode {
         self.env.eval_node(node)
     }
     
@@ -425,6 +470,20 @@ impl EnvFrame<'_> {
         match NodeValue::parse_value::<T>(value) {
             Ok(parsed_value) => StateNode::Value(parsed_value),
             Err(err) => StateNode::RuntimeErr(err),
+        }
+    }
+    
+    pub fn set_ident(&mut self, ident: &str, value: NodeValue) {
+        // println!("FRAME :: SET IDENT: {ident:?} {value:?}");
+        self.env.set_ident(ident, value);
+    }
+    
+    
+    pub fn get_ident(&self, ident: &str) -> StateNode {
+        // println!("FRAME :: GET IDENT: {ident:?}");
+        match self.env.get_ident(ident) {
+            NodeValue::ValueError(err) => StateNode::RuntimeErr(err),
+            value => StateNode::Value(value),
         }
     }
 

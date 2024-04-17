@@ -25,7 +25,7 @@ impl Expression<'_> {
         let result = match self {
             Expression::ExprOr(expr) => self.get_expr_or(lexer, parser, reader, expr, lambda),
             Expression::SubExpr(expr) => self.get_sub_expr(lexer, parser, reader, expr, lambda),
-            Expression::Expr(expr) => self.get_expr(lexer, parser, reader, expr),
+            Expression::Expr(expr) => self.get_expr(lexer, parser, reader, expr, lambda),
             Expression::Token(token, value) => self.get_token(lexer, reader, token, value, lambda),
         };
         result
@@ -93,13 +93,22 @@ impl Expression<'_> {
 
     /// Get the resulting [TreeNode] for an [`Expr`](Expression::Expr) 
     /// using the passed [`Lexer`], [`Parser`], and [`Reader`].
-    fn get_expr<T>(&self, lexer: &Lexer, parser: &Parser, reader: &mut T, expr: &str) -> Result<TreeNode, String>
+    fn get_expr<T>(&self, lexer: &Lexer, parser: &Parser, reader: &mut T, expr: &str, lambda: &Lambda) -> Result<TreeNode, String>
     where
         T: Reader,
     {
-        parser
+        let node = parser
             .get_expr(expr)?
-            .get(lexer, parser, reader)
+            .get(lexer, parser, reader)?;
+        match lambda {
+            Lambda::Eval => Ok(node),
+            _ => {
+                let mut node = TreeNode::from_nodes(vec![node]);
+                node.set_lambda(lambda);
+                Ok(node)
+            }
+        }
+        
     }
 
     /// Get the resulting [TreeNode] for a [`Token`](Expression::Token) 

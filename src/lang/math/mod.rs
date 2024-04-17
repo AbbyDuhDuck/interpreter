@@ -4,24 +4,37 @@ pub use math::*;
 pub mod math {
     use crate::parser::Parser;
     use crate::lexer::Lexer;
-    use crate::exec::VirtualEnv;
+    use crate::exec::{Executor, NodeValue, StateNode, VirtualEnv};
 
-    use once_cell::sync::Lazy;
+    pub fn exec() -> Executor<'static> {
+        Executor::new(self::lexer(), self::parser(), self::env())
+    }
 
-    pub const LEXER: Lazy<Lexer> = Lazy::new(|| {
+    pub fn lexer() -> Lexer {
         let mut lexer = Lexer::new();
         let _ = lexer.define("op", "\\+|\\-|\\*|\\/|\\(|\\)");
         let _ = lexer.define("float", "[0-9]+\\.[0-9]+");
         let _ = lexer.define("int", "[0-9]+");
+        let _ = lexer.define("assign", "\\:\\=|\\=");
         let _ = lexer.define("ident", "[a-zA-Z_]+");
         lexer
-    });
+    }
 
-    pub const PARSER: Lazy<Parser> = Lazy::new(|| {
+    pub fn parser() -> Parser<'static> {
         use crate::parser::syntax::Expression::*;
         use crate::exec::syntax::Lambda::*;
         let mut parser = Parser::new();
         let _ = parser.define("EXPR", Expr("MATH:EXPR"), Eval);
+        let _ = parser.define("EXPR", ExprOr(&[
+            Expr("ASSIGN"),
+            Expr("MATH:EXPR"),
+        ]), Eval);
+        let _ = parser.define("ASSIGN", 
+            SubExpr(&[Expr("IDENT"), Token("assign", ""), Expr("MATH:EXPR")]),
+            Lambda("SET_IDENT", &[1, 3])
+        );
+        let _ = parser.define("IDENT", Token("ident", ""), EvalToken);
+        
         let _ = parser.define("MATH:EXPR", ExprOr(&[
             SubExpr(&[ Expr("TERM"), Token("op", "+"), Expr("MATH:EXPR") ]),
             SubExpr(&[ Expr("TERM"), Token("op", "-"), Expr("MATH:EXPR") ]),
@@ -61,37 +74,37 @@ pub mod math {
             EvalAs("FLOAT"),
             EvalAs("INTEGER"),
         ]));
-        let _ = parser.define("VAR", Token("ident", ""), EvalAs("GET_IDENT"));
+        let _ = parser.define("VAR", Expr("IDENT"), Lambda("GET_IDENT", &[1]));
         parser
-    });
+    }
 
-    pub const ENV: Lazy<VirtualEnv> = Lazy::new(|| {
+    pub fn env() -> VirtualEnv {
         use crate::exec::syntax::Lambda::*;
         use crate::exec::StateNode::*;
         use crate::exec::Exec;
         let mut env = VirtualEnv::new();
        
-        env.define("ADD", |frame, | {
+        env.define("ADD", |mut frame, | {
             match frame.eval() {
-                Exec::BinOp(lhs, rhs) => lhs + rhs,
+                Exec::BinExpr(lhs, rhs) => lhs + rhs,
                 _ => RuntimeErr("Something add".into()),
             }
         });
-        env.define("SUB", |frame, | {
+        env.define("SUB", |mut frame, | {
             match frame.eval() {
-                Exec::BinOp(lhs, rhs) => lhs - rhs,
+                Exec::BinExpr(lhs, rhs) => lhs - rhs,
                 _ => RuntimeErr("Something sub".into()),
             }
         });
-        env.define("MULT", |frame, | {
+        env.define("MULT", |mut frame, | {
             match frame.eval() {
-                Exec::BinOp(lhs, rhs) => lhs * rhs,
+                Exec::BinExpr(lhs, rhs) => lhs * rhs,
                 _ => RuntimeErr("Something mult".into()),
             }
         });
-        env.define("DIV", |frame, | {
+        env.define("DIV", |mut frame, | {
             match frame.eval() {
-                Exec::BinOp(lhs, rhs) => lhs / rhs,
+                Exec::BinExpr(lhs, rhs) => lhs / rhs,
                 _ => RuntimeErr("Something div".into()),
             }
         });
@@ -101,10 +114,31 @@ pub mod math {
         env.define("FLOAT", |frame, | {
             frame.eval_as::<f32>()
         });
-        env.define("GET_IDENT", |frame, | {
-            RuntimeErr("Variables aren't implemented yet.".into())
+        env.define("GET_IDENT", |mut frame, | {
+            match frame.eval() {
+                Exec::UniExpr(ident) => {
+                    if let NodeValue::Ident(ident) = ident.as_ident() {
+                        return frame.get_ident(&ident);
+                    }
+                    return RuntimeErr(format!("Could not get Identifier `{ident:?}`"));
+                },
+                _ => RuntimeErr("Something get ident".into()),
+            }
+        });
+        env.define("SET_IDENT", |mut frame, | {
+            match frame.eval() {
+                Exec::BinExpr(ident, value) => {
+                    if let NodeValue::Ident(ident) = ident.as_ident() {
+                        frame.set_ident(&ident, value.as_node_value());
+                    } else {
+                        return RuntimeErr(format!("Could not set Identifier `{ident:?}`"));
+                    }
+                    StateNode::None
+                },
+                _ => RuntimeErr("Something set ident".into()),
+            }
         });
         env
-    });
+    }
 }
 
