@@ -2,6 +2,8 @@
 //! 
 //! Something something, basic interpreter in rust. 
 
+use crate::{exec::StateNode, parser::syntax::TreeNode};
+
 mod macros;
 pub mod lexer;
 pub mod parser;
@@ -17,6 +19,8 @@ pub mod lang;
 pub fn run() {
     use macros::io::*;
     loop {
+        // spacer
+        println!("---");
         // prompt the user for input
         let raw = prompt!("@> ");
         let input = raw.trim();
@@ -34,7 +38,6 @@ pub fn run() {
         };
         // display the result
         println!("{result}");
-        println!("---");
     }
 }
 
@@ -75,13 +78,21 @@ pub fn exec(expr_str: &str) -> Result<String, String>{
     // parser.define("expr", parser::RuleType::Token("num")); // TODO
 
     let ast = parser.parse_tree(&_lexer, &mut reader)?;
-    println!("AST:\n{ast:}");
+    // println!("AST:\n{ast:}");
 
     // -=- interpreter -=- //
     let env = math::ENV;
     let result = env.exec(ast);
-    println!("Result: {result:?}");
+
+    match result {
+        StateNode::None => Ok("None".into()),
+        StateNode::Value(val) => Ok(val.to_string().unwrap_or_default()),
+        
+        StateNode::RuntimeErr(err) => Err(err),
+        StateNode::Node(node) => Err(format!("Node Result: {node}")),
+    }
+    // println!("Result: {result:?}");
 
     // just ping back the input for now
-    Ok(format!("Ping: {expr_str:?}"))
+    // Ok(format!("Ping: {expr_str:?}"))
 }
