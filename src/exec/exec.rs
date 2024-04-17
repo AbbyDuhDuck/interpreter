@@ -21,17 +21,14 @@ impl VirtualEnv {
     }
 
     pub fn exec(&self, ast: AbstractSyntaxTree) -> StateNode {
-        println!("exec: {ast}");
-        // println!("lambda: {}", ast.root.lambda);
-        // println!("nodes: {:}", ast.root.nodes[0]);
-        // println!("lambda: {:#?}", ast.root.nodes[0].lambda);
+        // println!("exec: {ast}");
         self.eval_node(&ast.root)
     }
 
     fn eval_node(&self, node: &TreeNode) -> StateNode {
         let lambda = &node.lambda;
-        println!("EVAL: {node} {lambda}");
-        println!("{lambda:?}");
+        // println!("EVAL: {node} {lambda}");
+        // println!("{lambda:?}");
 
         self.eval_lambda(node, lambda)
     }
@@ -120,7 +117,7 @@ impl StateNode {
     }
 
     fn operator(lhs: StateNode, rhs: StateNode, op: fn(a: NodeValue, b: NodeValue) -> NodeValue) -> StateNode {
-        println!("OPERATOR\nLHS: {lhs:?}\nRHS: {rhs:?}");
+        // println!("OPERATOR\nLHS: {lhs:?}\nRHS: {rhs:?}");
         if let Self::RuntimeErr(_) = lhs { return lhs; }
         if let Self::RuntimeErr(_) = rhs { return rhs; }
         // -=-=- //
@@ -146,7 +143,6 @@ impl Sub for StateNode {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self::Output {
-        println!("{self:?} - {other:?}");
         Self::operator(self, other, |lhs, rhs| lhs - rhs )
     }
 }
@@ -237,7 +233,7 @@ impl Add for NodeValue {
     type Output = Self;
 
     fn add(self, other: Self) -> Self::Output {
-        println!("{self:?} + {other:?}");
+        // println!("{self:?} + {other:?}");
 
         // TODO: obfuscate out this to multiple functions somehow...
         match (&self, &other) {
@@ -262,7 +258,7 @@ impl Sub for NodeValue {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self::Output {
-        println!("{self:?} - {other:?}");
+        // println!("{self:?} - {other:?}");
         
         // TODO: obfuscate out this to multiple functions somehow...
         match (&self, &other) {
@@ -287,7 +283,7 @@ impl Mul for NodeValue {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self::Output {
-        println!("{self:?} * {other:?}");
+        // println!("{self:?} * {other:?}");
 
         // TODO: obfuscate out this to multiple functions somehow...
         match (&self, &other) {
@@ -312,7 +308,7 @@ impl Div for NodeValue {
     type Output = Self;
 
     fn div(self, other: Self) -> Self::Output {
-        println!("{self:?} / {other:?}");
+        // println!("{self:?} / {other:?}");
 
         if let Some(_) = match other {
             Self::BigFloat(float) if float == 0.0 => Some(()),

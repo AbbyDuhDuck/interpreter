@@ -26,7 +26,7 @@ impl<'a> Parser<'a> {
     /// Use a [`Lexer`] and a [`Reader`] to parse the next [`Expression`] from the Reader's content.
     pub fn parse_tree<T>(&self, lexer: &Lexer, reader: &mut T) -> Result<AbstractSyntaxTree, String>
     where T: Reader {
-        println!("Parsing an Expression");
+        // println!("Parsing an Expression");
         let expr = match self.definitions.get("EXPR") {
             Some(expr) => expr,
             None => { 
